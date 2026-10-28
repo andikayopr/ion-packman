@@ -84,7 +84,7 @@
                     </Grid>
                     <StackPanel>
                         <TextBlock Text="ION Services" FontSize="14" FontWeight="SemiBold"/>
-                        <TextBlock Text="Windows Services declared by the active profile" Style="{StaticResource MutedText}" FontSize="11"/>
+                        <TextBlock Text="Windows Services from machine.ini [SERVICE] and the active profile" Style="{StaticResource MutedText}" FontSize="11"/>
                     </StackPanel>
                 </DockPanel>
                 <DataGrid x:Name="ServicesGrid" MaxHeight="220" RowStyle="{StaticResource PathRow}">
@@ -107,7 +107,7 @@
                     </DataGrid.Columns>
                 </DataGrid>
                 <c:EmptyState x:Name="ServicesEmpty" Icon="⚙" Title="No services to show" Visibility="Collapsed"
-                              Message="No Windows Service is declared by the active profile or found under the ION base directory."/>
+                              Message="No Windows Service is declared in machine.ini or by the active profile, or found under the ION base directory."/>
             </StackPanel>
         </HeaderedContentControl>
 

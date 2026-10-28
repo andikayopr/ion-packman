@@ -168,7 +168,7 @@ public sealed class IniFile
         try
         {
             File.WriteAllText(tmp, ToText(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            File.Move(tmp, path, overwrite: true);
+            IoRetry.Run(() => File.Move(tmp, path, overwrite: true));
         }
         finally
         {

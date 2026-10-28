@@ -23,6 +23,7 @@ public sealed class MachineInspector
 {
     public MachineSnapshot Inspect() => new(Environment.MachineName, ReadWindowsVersion());
 
+    /// <summary>Versi Windows seperti yang ditampilkan winver: "Windows 11 Enterprise · Version 24H2 (OS Build 26100.2605)".</summary>
     private static string ReadWindowsVersion()
     {
         try
@@ -30,12 +31,34 @@ public sealed class MachineInspector
             using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
             using var key = hklm.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
             if (key?.GetValue("ProductName") is string product && product.Length > 0)
-                return $"{product} {Environment.OSVersion.Version}";
+                return FormatWindowsVersion(
+                    product,
+                    key.GetValue("DisplayVersion") as string ?? key.GetValue("ReleaseId") as string,
+                    key.GetValue("CurrentBuildNumber") as string ?? Environment.OSVersion.Version.Build.ToString(),
+                    key.GetValue("UBR") is int ubr ? ubr : null);
         }
         catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
         {
         }
         return "Unknown";
+    }
+
+    /// <summary>
+    /// Windows 11 masih menulis ProductName "Windows 10 ..." di Registry; winver memperbaikinya dari nomor build (>= 22000).
+    /// UBR = nomor revisi build (bagian setelah titik di "OS Build 26100.2605").
+    /// </summary>
+    public static string FormatWindowsVersion(string productName, string? displayVersion, string? buildNumber, int? ubr)
+    {
+        string product = productName;
+        if (int.TryParse(buildNumber, out int build) && build >= 22000 && product.StartsWith("Windows 10", StringComparison.OrdinalIgnoreCase))
+            product = "Windows 11" + product["Windows 10".Length..];
+
+        var details = new List<string>();
+        if (!string.IsNullOrWhiteSpace(displayVersion))
+            details.Add($"Version {displayVersion}");
+        if (!string.IsNullOrWhiteSpace(buildNumber))
+            details.Add($"(OS Build {buildNumber}{(ubr is { } revision ? "." + revision : "")})");
+        return details.Count == 0 ? product : $"{product} · {string.Join(" ", details)}";
     }
 
     /// <summary>Info satu service, atau null bila service tidak terpasang.</summary>

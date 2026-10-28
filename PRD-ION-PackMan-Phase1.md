@@ -152,7 +152,14 @@ APCONTAINER=D:\APCONTAINER
 
 [PackMan]
 LocalCacheDirectory=D:\ION-PackMan\Cache
+
+[SERVICE]                      ; opsional: ditampilkan di Dashboard (hanya dibaca)
+QRAPTOR=QRaptor                ; nama tampilan = nama Windows Service
+
+[PROGRAM]                      ; opsional: ditampilkan di Dashboard (hanya dibaca)
+ION_MIDDLEWARE=D:\RSC6\ion-middleware\src\IonMiddleware\bin\Debug\net8.0   ; nama tampilan = folder program
 ```
+`[SERVICE]` dan `[PROGRAM]` hanya menentukan apa yang dipantau Dashboard: service ditampilkan (status, startup type, path), dan proses yang berjalan dari folder program ditampilkan (PID, memori). Keduanya tidak memberi izin mengubah apa pun; izin eksekusi tetap hanya dari `allowlist.ini`. Nama section tidak peka huruf besar-kecil. Versi Windows di Dashboard dibaca seperti `winver` (mis. `Windows 11 Enterprise · Version 24H2 (OS Build 26100.xxxx)`).
 
 **`allowlist.ini`** — batas operasi yang diizinkan (D5, D12). Isi awal diambil dari data prototype dan dapat disesuaikan developer per mesin/profile.
 ```ini

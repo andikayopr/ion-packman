@@ -129,16 +129,16 @@ public sealed class BuildImporter
         if (hadOld)
         {
             DeleteIfExists(oldDir);
-            Directory.Move(finalDir, oldDir);
+            IoRetry.Run(() => Directory.Move(finalDir, oldDir));
         }
         try
         {
-            Directory.Move(stagingDir, finalDir);
+            IoRetry.Run(() => Directory.Move(stagingDir, finalDir));
         }
         catch
         {
             if (hadOld)
-                Directory.Move(oldDir, finalDir);
+                IoRetry.Run(() => Directory.Move(oldDir, finalDir));
             throw;
         }
         if (hadOld)

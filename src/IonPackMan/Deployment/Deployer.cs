@@ -103,7 +103,7 @@ public sealed class Deployer
         foreach (var file in plan.Files.Where(f => f.Change != FileChange.Same))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(file.TargetPath)!);
-            File.Copy(file.SourcePath, file.TargetPath, overwrite: true);
+            IoRetry.Run(() => File.Copy(file.SourcePath, file.TargetPath, overwrite: true));
             if (!HashOf(file.TargetPath).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new IOException($"'{file.RelativePath}' was copied but its content does not match the build.");
         }

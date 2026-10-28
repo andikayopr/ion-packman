@@ -15,7 +15,19 @@ public class MachineInspectorTests
 
         Assert.Equal(Environment.MachineName, snap.MachineName);
         Assert.StartsWith("Windows", snap.WindowsVersion);
-        Assert.Contains(Environment.OSVersion.Version.ToString(), snap.WindowsVersion);
+        // Seperti winver: nomor build ikut tampil ("OS Build 26100.xxxx").
+        Assert.Contains($"OS Build {Environment.OSVersion.Version.Build}", snap.WindowsVersion);
+    }
+
+    [Theory]
+    [InlineData("Windows 10 Enterprise", "22H2", "19045", 5440, "Windows 10 Enterprise · Version 22H2 (OS Build 19045.5440)")]
+    [InlineData("Windows 10 Enterprise", "24H2", "26100", 2605, "Windows 11 Enterprise · Version 24H2 (OS Build 26100.2605)")]   // Windows 11 masih ditulis "Windows 10" di Registry
+    [InlineData("Windows 10 IoT Enterprise LTSC 2021", "21H2", "19044", 3086, "Windows 10 IoT Enterprise LTSC 2021 · Version 21H2 (OS Build 19044.3086)")]
+    [InlineData("Windows 10 Pro", null, "19045", null, "Windows 10 Pro · (OS Build 19045)")]
+    [InlineData("Windows 10 Pro", null, null, null, "Windows 10 Pro")]
+    public void FormatWindowsVersion_FollowsWinver(string product, string? displayVersion, string? build, int? ubr, string expected)
+    {
+        Assert.Equal(expected, MachineInspector.FormatWindowsVersion(product, displayVersion, build, ubr));
     }
 
     [Theory]

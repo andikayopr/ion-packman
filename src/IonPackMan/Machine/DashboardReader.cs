@@ -1,3 +1,4 @@
+using System.IO;
 using IonPackMan.Components;
 using IonPackMan.Controls;
 using IonPackMan.History;
@@ -128,12 +129,46 @@ public sealed class DashboardReader
                 $"{p.MemoryBytes / (1024 * 1024)} MB", p.ExecutablePath)));
         }
 
+        if (_machine is not null)
+        {
+            AddMachineServices(_machine, services, listed);
+            AddMachinePrograms(_machine, processes);
+        }
+
         // R2: service lain yang berjalan dari base directory ION juga ditampilkan.
         if (_machine is not null)
             foreach (var info in _inspector.FindServicesUnder(_machine.InstallLocations.Values).Where(s => listed.Add(s.Name)))
                 services.Add(ToRow(info, "—"));
 
         return (services, processes);
+    }
+
+    // [SERVICE] di machine.ini: label = Component, nilai = nama Windows Service. Yang tidak ada ditandai, bukan disembunyikan.
+    private void AddMachineServices(MachineConfig machine, List<ServiceRow> services, HashSet<string> listed)
+    {
+        foreach (var (label, serviceName) in machine.Services)
+        {
+            if (!listed.Add(serviceName))
+                continue;
+            var info = _inspector.GetService(serviceName);
+            services.Add(info is null
+                ? new ServiceRow(serviceName, "", label, "Not found", StatusKind.Warning, "—", "")
+                : ToRow(info, label));
+        }
+    }
+
+    // [PROGRAM] di machine.ini: label = Component, nilai = folder program. Proses yang berjalan dari folder itu ditampilkan.
+    private void AddMachinePrograms(MachineConfig machine, List<ProcessRow> processes)
+    {
+        foreach (var (label, folder) in machine.Programs)
+        {
+            var running = _inspector.GetProcessesUnder(folder);
+            if (running.Count == 0)
+                processes.Add(new ProcessRow("—", label, "—",
+                    Directory.Exists(folder) ? "Not detected" : "Folder not found", StatusKind.Neutral, "—", folder));
+            processes.AddRange(running.Select(p => new ProcessRow(p.Name, label, p.Pid.ToString(), "Running", StatusKind.Success,
+                $"{p.MemoryBytes / (1024 * 1024)} MB", p.ExecutablePath)));
+        }
     }
 
     private static ServiceRow ToRow(ServiceInfo s, string component) => new(s.Name, s.DisplayName, component, s.Status,

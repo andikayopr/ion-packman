@@ -18,6 +18,12 @@ public sealed class MachineConfig
     public required IReadOnlyDictionary<string, string> InstallLocations { get; init; }
     public required string LocalCacheDirectory { get; init; }
 
+    /// <summary>[SERVICE] nama tampilan = nama Windows Service. Hanya untuk ditampilkan di Dashboard (dibaca, tidak diubah).</summary>
+    public IReadOnlyDictionary<string, string> Services { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>[PROGRAM] nama tampilan = folder program. Proses yang berjalan dari folder itu tampil di Dashboard.</summary>
+    public IReadOnlyDictionary<string, string> Programs { get; init; } = new Dictionary<string, string>();
+
     /// <summary>Gating Developer Console (D6/D7). Selain "Development" — termasuk file yang tidak terbaca — berarti false.</summary>
     public bool IsDevelopment => Environment.Equals("Development", StringComparison.OrdinalIgnoreCase);
 
@@ -29,7 +35,7 @@ public sealed class MachineConfig
             return (null, errors);
 
         errors.AddRange(IniSchema.CheckMeta(ini));
-        errors.AddRange(ini.CheckSections("Meta", "Machine", "InstallLocations", "PackMan"));
+        errors.AddRange(ini.CheckSections("Meta", "Machine", "InstallLocations", "PackMan", "SERVICE", "PROGRAM"));
         errors.AddRange(ini.CheckKeys("Machine", required: ["MachineName", "Environment"], optional: ["Profile"]));
         errors.AddRange(ini.CheckKeys("PackMan", required: ["LocalCacheDirectory"], optional: []));
         if (!ini.HasSection("InstallLocations"))
@@ -38,6 +44,13 @@ public sealed class MachineConfig
         string environment = ini.Get("Machine", "Environment") ?? "";
         if (environment.Length > 0 && !Environments.Contains(environment, StringComparer.OrdinalIgnoreCase))
             errors.Add($"[Machine] Environment '{environment}' must be one of: {string.Join(", ", Environments)}.");
+
+        foreach (var (label, serviceName) in ini.Section("SERVICE"))
+            if (serviceName.Length == 0)
+                errors.Add($"[SERVICE] '{label}' has no service name.");
+        foreach (var (label, folder) in ini.Section("PROGRAM"))
+            if (!Path.IsPathFullyQualified(folder) || folder.StartsWith(@"\\", StringComparison.Ordinal))
+                errors.Add($"[PROGRAM] '{label}' must be a full local folder path (found '{folder}').");
 
         if (errors.Count > 0)
             return (null, errors.Select(e => $"{path}: {e}").ToList());
@@ -49,6 +62,8 @@ public sealed class MachineConfig
             Profile = ini.Get("Machine", "Profile") ?? "",
             InstallLocations = new Dictionary<string, string>(ini.Section("InstallLocations"), StringComparer.OrdinalIgnoreCase),
             LocalCacheDirectory = ini.Get("PackMan", "LocalCacheDirectory")!,
+            Services = new Dictionary<string, string>(ini.Section("SERVICE"), StringComparer.OrdinalIgnoreCase),
+            Programs = new Dictionary<string, string>(ini.Section("PROGRAM"), StringComparer.OrdinalIgnoreCase),
         }, []);
     }
 
