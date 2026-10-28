@@ -35,7 +35,7 @@
 | **T16** ✅ | **`HistoryStore`** — `Write/GetAll/GetLatest`, satu `History\<execId>.ini` per eksekusi (ADR-005), tulis sekali | S | T04, T05 | Test: urutan nama = urutan waktu; file rusak tidak merusak daftar; tidak ada API ubah/hapus |
 | **T17** ✅ | **`DashboardScreen`** — banner recovery (placeholder, aktif di 1c), 4 kartu metrik, ION Applications, tabel Services (4 kolom), tabel Processes, cari, Refresh | M | T03, T14, T15, T16 | Sesuai UI/UX §4.1; 4 kartu + tabel service terlihat tanpa scroll di 1024×768; Refresh membaca ulang mesin |
 | **T18** ✅ | **`HistoryScreen` skeleton** — tabel (Time, Component, Build, Outcome), detail di bawah tabel, EmptyState | S | T16 | "No deployments yet" saat kosong; tabel terisi dari file contoh |
-| **T19** | **QA tata letak 1024×768** — checklist UI/UX §9 untuk semua layar (100% dan 125%) | S | T08, T12, T17, T18 | Checklist lulus; temuan dicatat sebagai tiket |
+| **T19** ✅ | **QA tata letak 1024×768** — checklist UI/UX §9 untuk semua layar (100% dan 125%) | S | T08, T12, T17, T18 | Checklist lulus; temuan dicatat sebagai tiket |
 
 **Selesai 1b bila:** R1–R2 lulus acceptance; engineer dapat membuka PackMan di mesin dev dan melihat kondisi mesin; History kosong tampil benar.
 

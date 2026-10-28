@@ -47,7 +47,7 @@
         </Style>
     </UserControl.Resources>
 
-    <StackPanel Margin="16">
+    <StackPanel>
         <!-- Page head -->
         <DockPanel Margin="0,0,0,12">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
