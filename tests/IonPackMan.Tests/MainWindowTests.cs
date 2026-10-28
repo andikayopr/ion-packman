@@ -118,11 +118,13 @@ public class MainWindowTests : IDisposable
 
             w.SetMachine(Machine("Production"), []);
             Assert.False(w.IsMenuEnabled(MainWindow.DevConsole));
-            Assert.Equal("Only available on Development machines", ((RadioButton)Find<StackPanel>(w, "Nav").Children[3]).ToolTip);
+            Assert.Equal("Only available on Development machines (this machine is 'Production')", ((RadioButton)Find<StackPanel>(w, "Nav").Children[3]).ToolTip);
 
             w.SetMachine(null, ["machine.ini: file not found."]);   // tidak terbaca = terkunci juga
             Assert.False(w.IsMenuEnabled(MainWindow.DevConsole));
             Assert.Equal("machine.ini is not valid", Find<TextBlock>(w, "MachineText").Text);
+            // Alasan terkunci menyebut masalah sebenarnya, bukan "bukan Development".
+            Assert.Contains("machine.ini could not be loaded (machine.ini: file not found.)", (string)((RadioButton)Find<StackPanel>(w, "Nav").Children[3]).ToolTip);
             Assert.Contains("file not found", (string)Find<TextBlock>(w, "MachineText").ToolTip);
         });
     }

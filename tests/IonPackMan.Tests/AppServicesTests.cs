@@ -144,7 +144,7 @@ public class AppServicesTests : IDisposable
             ((Button)components.FindName("UseInConsoleButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
             Assert.Equal(MainWindow.Components, window.CurrentKey);   // tetap di Components
-            Assert.Equal("Only available on Development machines", ((IonPackMan.Controls.Toast)window.FindName("ToastBox")).Message);
+            Assert.Equal("Only available on Development machines (this machine is 'Production')", ((IonPackMan.Controls.Toast)window.FindName("ToastBox")).Message);
             window.Close();
         });
     }

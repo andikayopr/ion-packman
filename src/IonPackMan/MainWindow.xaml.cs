@@ -130,7 +130,10 @@ public partial class MainWindow : Window
 
         bool allowDevConsole = config?.IsDevelopment == true;
         _navButtons[DevConsole].IsEnabled = allowDevConsole;
-        _navButtons[DevConsole].ToolTip = allowDevConsole ? "Developer Console" : "Only available on Development machines";
+        // Alasan terkunci harus jelas: machine.ini rusak/tidak ada berbeda dari "bukan mesin Development".
+        _navButtons[DevConsole].ToolTip = allowDevConsole ? "Developer Console"
+            : config is null ? $"Locked: machine.ini could not be loaded ({errors.FirstOrDefault() ?? "unknown problem"})"
+            : $"Only available on Development machines (this machine is '{config.Environment}')";
 
         // Layar yang sedang tampil (mis. Developer Console) perlu tahu bahwa mesin berubah/terkunci.
         if (!allowDevConsole && _current == DevConsole)
