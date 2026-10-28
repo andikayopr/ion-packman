@@ -179,14 +179,9 @@ public sealed class BuildImporter
         return (new BuildInfo(id, version, ini.Get("Build", "SourceFolderName")!, count, bytes, at), []);
     }
 
-    /// <summary>Membandingkan isi folder files dengan files.sha256. Daftar kosong = build valid.</summary>
-    public List<string> Verify(string componentId, string releaseVersion, Action<int, int>? progress = null)
+    /// <summary>Isi files.sha256: path relatif (pemisah '/') -> SHA-256 huruf kecil. Null + error bila tidak terbaca atau rusak.</summary>
+    public (Dictionary<string, string>? Files, List<string> Errors) ReadChecksums(string componentId, string releaseVersion)
     {
-        var (info, loadErrors) = Load(componentId, releaseVersion);
-        if (info is null)
-            return loadErrors;
-
-        string filesDir = Paths.BuildFilesDir(_cacheDir, componentId, releaseVersion);
         string sumsPath = Paths.BuildChecksums(_cacheDir, componentId, releaseVersion);
         var expected = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         try
@@ -195,15 +190,29 @@ public sealed class BuildImporter
             {
                 if (line.Length == 0) continue;
                 if (line.Length <= 66 || line.IndexOf("  ", StringComparison.Ordinal) != 64)
-                    return [$"{sumsPath}: malformed line '{line}'."];
+                    return (null, [$"{sumsPath}: malformed line '{line}'."]);
                 if (!expected.TryAdd(line[66..], line[..64].ToLowerInvariant()))
-                    return [$"{sumsPath}: duplicate entry '{line[66..]}'."];
+                    return (null, [$"{sumsPath}: duplicate entry '{line[66..]}'."]);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return [$"{sumsPath}: cannot be read ({ex.Message})."];
+            return (null, [$"{sumsPath}: cannot be read ({ex.Message})."]);
         }
+        return (expected, []);
+    }
+
+    /// <summary>Membandingkan isi folder files dengan files.sha256. Daftar kosong = build valid.</summary>
+    public List<string> Verify(string componentId, string releaseVersion, Action<int, int>? progress = null)
+    {
+        var (info, loadErrors) = Load(componentId, releaseVersion);
+        if (info is null)
+            return loadErrors;
+
+        string filesDir = Paths.BuildFilesDir(_cacheDir, componentId, releaseVersion);
+        var (expected, sumsErrors) = ReadChecksums(componentId, releaseVersion);
+        if (expected is null)
+            return sumsErrors;
 
         var problems = new List<string>();
         if (expected.Count != info.FileCount)
