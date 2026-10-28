@@ -1,0 +1,146 @@
+<UserControl x:Class="IonPackMan.Screens.ComponentsScreen"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:IonPackMan.Controls">
+    <UserControl.Resources>
+        <!-- Tombol tab: aktif = biru lembut (Tag="active"). -->
+        <Style x:Key="TabButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="MinWidth" Value="96"/>
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="active">
+                    <Setter Property="Background" Value="{StaticResource Brush.BlueSoft}"/>
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Blue}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource Brush.Blue}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <!-- Kepala halaman -->
+        <DockPanel Margin="0,0,0,16">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="ValidateButton" Content="Validate" Margin="0,0,8,0" Click="OnValidate"/>
+                <Button x:Name="SaveButton" Content="Save Component" Style="{StaticResource PrimaryButton}" Click="OnSave"/>
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="Components" Style="{StaticResource PageTitle}"/>
+                <TextBlock Text="Define where each component release is installed and which service it runs as." Style="{StaticResource PageSubtitle}"/>
+            </StackPanel>
+        </DockPanel>
+
+        <c:Notice x:Name="CatalogNotice" Kind="Error" Visibility="Collapsed"/>
+
+        <!-- Katalog -->
+        <HeaderedContentControl Style="{StaticResource Card}" Header="Component catalog">
+            <StackPanel>
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="200"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="SearchBox" Margin="0,0,8,0" ToolTip="Search by id, name or version" TextChanged="OnCatalogFilterChanged"
+                             AutomationProperties.Name="Search components"/>
+                    <ComboBox x:Name="FilterBox" Grid.Column="1" SelectedIndex="0" SelectionChanged="OnCatalogFilterChanged"
+                              AutomationProperties.Name="Filter components">
+                        <ComboBoxItem Content="All"/>
+                        <ComboBoxItem Content="Saved releases"/>
+                        <ComboBoxItem Content="Has local build"/>
+                        <ComboBoxItem Content="Not saved"/>
+                    </ComboBox>
+                </Grid>
+
+                <DataGrid x:Name="CatalogGrid" Height="196" RowHeight="40">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Component" Binding="{Binding Display}" Width="1.5*"/>
+                        <DataGridTextColumn Header="Saved versions" Binding="{Binding Versions}" Width="1.3*"/>
+                        <DataGridTextColumn Header="Local build" Binding="{Binding LocalBuild}" Width="1.5*"/>
+                        <DataGridTemplateColumn Header="Open" Width="78">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Content="Open" Height="28" Padding="10,0" Tag="{Binding Id}" Click="OnOpenRow"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <DockPanel Margin="0,10,0,0">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button x:Name="PrevButton" Content="‹ Prev" Margin="0,0,6,0" Click="OnPrevPage"/>
+                        <Button x:Name="NextButton" Content="Next ›" Click="OnNextPage"/>
+                    </StackPanel>
+                    <TextBlock x:Name="PageText" Style="{StaticResource MutedText}" VerticalAlignment="Center"/>
+                </DockPanel>
+            </StackPanel>
+        </HeaderedContentControl>
+
+        <!-- Release -->
+        <HeaderedContentControl Style="{StaticResource Card}" Header="Component release" Margin="0,12,0,0">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                    <Button x:Name="FormTab" Content="Form" Style="{StaticResource TabButton}" Tag="active" Click="OnShowForm"/>
+                    <Button x:Name="IniTab" Content="INI preview" Style="{StaticResource TabButton}" Click="OnShowIni"/>
+                </StackPanel>
+
+                <!-- Tab Form -->
+                <StackPanel x:Name="FormPanel">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,10">
+                            <TextBlock Text="Component" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox x:Name="ComponentBox" SelectionChanged="OnFormChanged" AutomationProperties.Name="Component"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,10">
+                            <TextBlock Text="Release version" Style="{StaticResource FieldLabel}"/>
+                            <DockPanel>
+                                <Button x:Name="LoadButton" DockPanel.Dock="Right" Content="Load version" Margin="8,0,0,0" Click="OnLoadVersion"/>
+                                <TextBox x:Name="VersionBox" TextChanged="OnFormChanged" AutomationProperties.Name="Release version"/>
+                            </DockPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,10">
+                            <TextBlock Text="Build reference" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="BuildRefBox" TextChanged="OnFormChanged" AutomationProperties.Name="Build reference"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,10">
+                            <TextBlock Text="Windows service name" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="ServiceBox" TextChanged="OnFormChanged" AutomationProperties.Name="Windows service name"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.ColumnSpan="3" Margin="0,0,0,10">
+                            <TextBlock Text="Target directory" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="TargetBox" TextChanged="OnFormChanged" AutomationProperties.Name="Target directory"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock x:Name="SavedVersionsText" Style="{StaticResource MutedText}" Margin="0,0,0,10"/>
+                </StackPanel>
+
+                <!-- Tab INI preview -->
+                <TextBox x:Name="IniBox" Style="{StaticResource CodePreview}" Height="300" Visibility="Collapsed"
+                         AutomationProperties.Name="INI preview" Margin="0,0,0,10"/>
+
+                <WrapPanel>
+                    <Button x:Name="ImportIniButton" Content="Import INI…" Margin="0,0,8,8" Click="OnImportIni"/>
+                    <Button x:Name="ExportIniButton" Content="Export INI…" Margin="0,0,8,8" Click="OnExportIni"/>
+                    <Button x:Name="ImportBuildButton" Content="Import local build…" Margin="0,0,8,8" Click="OnImportBuild"
+                            ToolTip="Save this release first, then import its build folder."/>
+                    <Button x:Name="UseInConsoleButton" Content="Use in Developer Console" Margin="0,0,0,8" IsEnabled="False"
+                            ToolTip="Available in iteration 1c"/>
+                </WrapPanel>
+                <TextBlock x:Name="BuildText" Style="{StaticResource MutedText}" Margin="0,0,0,8" TextTrimming="CharacterEllipsis"/>
+
+                <c:Notice x:Name="ReleaseNotice" Visibility="Collapsed" Margin="0,4,0,0"/>
+            </StackPanel>
+        </HeaderedContentControl>
+    </StackPanel>
+</UserControl>
