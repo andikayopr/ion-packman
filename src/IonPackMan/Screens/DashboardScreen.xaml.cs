@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using IonPackMan.Controls;
+using IonPackMan.Deployment;
 using IonPackMan.Machine;
 
 namespace IonPackMan.Screens;
@@ -10,14 +11,17 @@ namespace IonPackMan.Screens;
 public partial class DashboardScreen : UserControl, IScreen
 {
     private readonly DashboardReader _reader;
+    private readonly RecoveryService? _recovery;
     private DashboardSnapshot? _snapshot;
 
     public event Action<string>? Message;
 
-    public DashboardScreen(DashboardReader reader)
+    /// <param name="recovery">null bila machine.ini/allowlist.ini tidak valid (tidak ada yang bisa dipulihkan atau dijalankan).</param>
+    public DashboardScreen(DashboardReader reader, RecoveryService? recovery = null)
     {
         InitializeComponent();
         _reader = reader;
+        _recovery = recovery;
     }
 
     /// <summary>Membaca ulang kondisi mesin (saat layar dibuka dan saat Refresh ditekan).</summary>
@@ -34,6 +38,61 @@ public partial class DashboardScreen : UserControl, IScreen
             Mouse.OverrideCursor = previous;
         }
         Show(_snapshot);
+        ShowRecovery();
+    }
+
+    /// <summary>Banner merah + tombol Restore bila ada backup yang belum selesai atau tidak terbaca.</summary>
+    private void ShowRecovery()
+    {
+        var (pending, problems) = _recovery?.FindPending() ?? ([], []);
+        RecoveryBanner.Visibility = pending.Count + problems.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        RestoreButton.IsEnabled = pending.Count > 0;
+
+        var lines = pending.Select(p => $"{p.Component} ({p.ExecId}): {p.Status}").Concat(problems).ToList();
+        RecoveryText.Text = "An earlier execution was interrupted and the machine may not be back in its original state. " +
+                            "Restore before using the Developer Console." + Environment.NewLine + string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>Memulihkan semua backup tertunda (terlama dulu). Dipakai tombol Restore dan tes; dialog konfirmasi ada di handler tombol.</summary>
+    public List<string> RestorePending()
+    {
+        var failures = new List<string>();
+        if (_recovery is null)
+            return failures;
+
+        foreach (var pending in _recovery.FindPending().Pending)
+        {
+            var result = _recovery.Restore(pending.ExecId);
+            failures.AddRange(result.Failures.Select(f => $"{pending.ExecId}: {f}"));
+            failures.AddRange(result.HistoryProblems.Select(f => $"History: {f}"));
+        }
+
+        Refresh();
+        Message?.Invoke(failures.Count == 0 ? "Backup restored. The Developer Console is available again." : "Restore is not complete. See the Dashboard for details.");
+        return failures;
+    }
+
+    private void OnRestoreClick(object sender, RoutedEventArgs e)
+    {
+        var answer = MessageBox.Show("Restore the unfinished backup now? Files, Registry/INI values and the service state are returned to what they were before the interrupted execution.",
+            "Restore", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel);
+        if (answer != MessageBoxResult.OK)
+            return;
+
+        var previous = Mouse.OverrideCursor;
+        Mouse.OverrideCursor = Cursors.Wait;
+        List<string> failures;
+        try
+        {
+            failures = RestorePending();
+        }
+        finally
+        {
+            Mouse.OverrideCursor = previous;
+        }
+
+        if (failures.Count > 0)
+            MessageBox.Show(string.Join(Environment.NewLine, failures), "Restore is not complete", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private void Show(DashboardSnapshot s)

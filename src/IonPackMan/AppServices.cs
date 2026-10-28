@@ -33,6 +33,7 @@ public sealed class AppServices
     public PlanBuilder? Planner { get; private init; }
     public Deployer? Deployer { get; private init; }
     public ProfileDetector? Detector { get; private init; }
+    public RecoveryService? Recovery { get; private init; }
 
     public static AppServices Create(string releaseDir, string machineIniPath)
     {
@@ -73,6 +74,7 @@ public sealed class AppServices
             Builds = builds,
             History = history,
             Detector = detector,
+            Recovery = machine is null || backups is null || history is null ? null : new RecoveryService(backups, history, machine),
             Backups = backups,
             Guards = guards,
             Planner = planner,

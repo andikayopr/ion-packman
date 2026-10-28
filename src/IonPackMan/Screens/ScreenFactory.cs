@@ -9,7 +9,7 @@ public static class ScreenFactory
     /// <param name="toast">Menampilkan pesan singkat (dipakai alur yang berjalan di luar layar, mis. dialog import).</param>
     public static FrameworkElement Create(string key, AppServices s, Action<string> toast) => key switch
     {
-        MainWindow.Dashboard => new DashboardScreen(s.Dashboard),
+        MainWindow.Dashboard => new DashboardScreen(s.Dashboard, s.Recovery),
         MainWindow.Components => CreateComponents(s, toast),
         MainWindow.Profiles => CreateProfiles(s),
         MainWindow.History => CreateHistory(s),

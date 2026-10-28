@@ -24,6 +24,15 @@
             </StackPanel>
         </DockPanel>
 
+        <!-- Backup yang belum selesai (PRD R11): Developer Console terkunci sampai dipulihkan -->
+        <c:Notice x:Name="RecoveryBanner" Kind="Error" Visibility="Collapsed" Margin="0,0,0,10">
+            <DockPanel>
+                <Button x:Name="RestoreButton" DockPanel.Dock="Right" Content="Restore" Style="{StaticResource DangerButton}"
+                        Click="OnRestoreClick" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="RecoveryText" TextWrapping="Wrap" VerticalAlignment="Center"/>
+            </DockPanel>
+        </c:Notice>
+
         <c:Notice x:Name="ProblemNotice" Kind="Warning" Visibility="Collapsed"/>
 
         <!-- 4 kartu metrik dalam satu baris -->

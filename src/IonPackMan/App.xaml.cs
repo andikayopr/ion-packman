@@ -25,7 +25,8 @@ public partial class App : Application
 
         var services = AppServices.Create(Paths.ReleaseDirectory, Paths.MachineIni);
         MainWindow window = null!;   // dipakai toast; baru terisi setelah konstruktor, sebelum ada yang menekan tombol
-        window = new MainWindow(key => ScreenFactory.Create(key, services, text => window.ShowToast(text)));
+        window = new MainWindow(key => ScreenFactory.Create(key, services, text => window.ShowToast(text)),
+            hasPendingRecovery: () => services.Recovery?.HasPending() == true);
         window.SetMachine(services.Machine, services.MachineErrors);
         window.Show();
     }
