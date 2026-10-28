@@ -292,8 +292,10 @@ public sealed class BackupStore
             serviceOk = false;
         }
 
-        // (i) Stop service bila file akan dikembalikan/dihapus dan service masih aktif.
-        if (serviceOk && (replaced.Count > 0 || newFiles.Count > 0))
+        // (i) Stop service hanya bila ada file yang benar-benar perlu dikembalikan/dihapus dan service masih aktif.
+        //     Bila eksekusi gagal sebelum menyentuh file (mis. stop service timeout), tidak ada yang perlu dilakukan
+        //     dan menghentikan service lagi hanya akan gagal dengan alasan yang sama.
+        if (serviceOk && (replaced.Any(t => FileNeedsRestore(backup, t)) || newFiles.Any(File.Exists)))
             Attempt(failures, $"stop service '{service}'", () =>
             {
                 if (IsActive(_services.GetState(service)))
@@ -348,6 +350,20 @@ public sealed class BackupStore
             failures.Add($"Could not update the status in backup.ini ({ex.Message}); the backup stays pending and Restore can be run again.");
         }
         return failures;
+    }
+
+    // true bila file target berbeda dari salinan backup, atau salinannya/targetnya tidak bisa dibandingkan (diselesaikan RestoreFile).
+    private bool FileNeedsRestore(Backup backup, string target)
+    {
+        try
+        {
+            string copy = CopyPathFor(backup.BackupDir, target);
+            return !File.Exists(copy) || !File.Exists(target) || HashOf(copy) != HashOf(target);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
     }
 
     private void RestoreFile(Backup backup, string target)
