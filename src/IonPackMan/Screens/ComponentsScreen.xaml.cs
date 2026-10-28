@@ -12,7 +12,7 @@ namespace IonPackMan.Screens;
 /// Layar Components (UI/UX Spec §4.2): katalog, form release, pratinjau INI.
 /// Hanya tampilan; aturan isi dan penyimpanan ada di ComponentRelease dan ComponentStore.
 /// </summary>
-public partial class ComponentsScreen : UserControl
+public partial class ComponentsScreen : UserControl, IScreen
 {
     private const int PageSize = 4;
 

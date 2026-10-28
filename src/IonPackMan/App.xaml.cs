@@ -1,5 +1,4 @@
 using System.Windows;
-using IonPackMan.Machine;
 using IonPackMan.Screens;
 
 namespace IonPackMan;
@@ -24,18 +23,11 @@ public partial class App : Application
 
         base.OnStartup(e);
 
-        var (machine, errors) = MachineConfig.Load(Paths.MachineIni);
-        var window = new MainWindow(CreateScreen);
-        window.SetMachine(machine, errors);
+        var services = AppServices.Create(Paths.ReleaseDirectory, Paths.MachineIni);
+        MainWindow window = null!;   // dipakai toast; baru terisi setelah konstruktor, sebelum ada yang menekan tombol
+        window = new MainWindow(key => ScreenFactory.Create(key, services, text => window.ShowToast(text)));
+        window.SetMachine(services.Machine, services.MachineErrors);
         window.Show();
-    }
-
-    // Layar sungguhan didaftarkan di sini satu per satu seiring tiketnya selesai.
-    private static FrameworkElement CreateScreen(string key)
-    {
-        // Di dalam App, "MainWindow" berarti properti Application.MainWindow, jadi tulis lengkap.
-        var (_, title, icon) = IonPackMan.MainWindow.Menus.Single(m => m.Key == key);
-        return new PlaceholderScreen(title, "This screen is not built yet.", icon);
     }
 
     protected override void OnExit(ExitEventArgs e)

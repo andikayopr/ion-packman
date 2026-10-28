@@ -21,7 +21,7 @@
 | **T09** ✅ | **`BuildImporter`** — pilih folder, cek ruang disk, salin ke `Cache\Builds\<id>@<ver>\`, hash SHA-256 per file, tulis `build.ini` (metadata), tandai invalid bila hash berubah/file hilang | L | T05, T07 | Ruang tidak cukup → ditolak; import ulang menimpa versi yang sama dengan konfirmasi; `Verify` mendeteksi file diubah/hilang; tidak menghapus apa pun otomatis (D8) |
 | **T10** ✅ | **`ProfileStore` + `ProfileValidator`** (R6, R8) — load/save `Profiles\<Id>.ini`, 6 aturan validasi, deteksi dependency melingkar | M | T07 | Test untuk tiap aturan R8 + siklus A→B→A; komponen duplikat ditolak; versi harus ada di katalog |
 | **T11** ✅ | **`FeatureResolver`** (R7) — WindWebUI/JnlLog → daftar entri Registry/INI, cek allow-list; JNLLog otomatis mati bila WebUI mati | S | T06, T10 | Entri di luar allow-list ditandai dan membuat Profile tidak valid; hasil identik untuk versi WIND berbeda |
-| **T12** | **`ProfilesScreen`** — katalog, tab Components / Registry & INI / INI preview, chip `DependsOn`, centang fitur | M | T03, T10, T11 | Sesuai UI/UX §4.3; Save nonaktif bila tidak valid; QRISTAP & MDD tampil valid |
+| **T12** ✅ | **`ProfilesScreen`** — katalog, tab Components / Registry & INI / INI preview, chip `DependsOn`, centang fitur | M | T03, T10, T11 | Sesuai UI/UX §4.3; Save nonaktif bila tidak valid; QRISTAP & MDD tampil valid |
 | **T13** ✅ | **Data awal** — 5 component, Profile QRISTAP & MDD, `allowlist.ini` awal dari prototype, contoh `machine.ini` Development | S | T04 | Dibuka di aplikasi → kedua Profile valid; dependency MDD sesuai D2 |
 
 **Selesai 1a bila:** R3–R8 lulus acceptance, Profile QRIS TAP & MDD tervalidasi (exit PRD §13), skema INI diberi `SchemaVersion=1.0`.
@@ -33,7 +33,7 @@
 | **T14** ✅ | **`MachineInspector`** — nama mesin, versi Windows, daftar service (`ServiceController`) + startup type + executable path, proses (nama, PID, memori, path) — **hanya baca** | M | T05 | Service/proses yang tidak ada → "Not detected"; status service dan proses terpisah (R2); tanpa hak tulis |
 | **T15** ✅ | **`ProfileDetector`** (R1) — cocokkan komponen/service di lokasi instalasi dengan Profile tersimpan | M | T10, T14 | 0 atau >1 cocok → "Unknown" + alasan; tidak pernah menampilkan nilai sample |
 | **T16** ✅ | **`HistoryStore`** — `Write/GetAll/GetLatest`, satu `History\<execId>.ini` per eksekusi (ADR-005), tulis sekali | S | T04, T05 | Test: urutan nama = urutan waktu; file rusak tidak merusak daftar; tidak ada API ubah/hapus |
-| **T17** | **`DashboardScreen`** — banner recovery (placeholder, aktif di 1c), 4 kartu metrik, ION Applications, tabel Services (4 kolom), tabel Processes, cari, Refresh | M | T03, T14, T15, T16 | Sesuai UI/UX §4.1; 4 kartu + tabel service terlihat tanpa scroll di 1024×768; Refresh membaca ulang mesin |
+| **T17** ✅ | **`DashboardScreen`** — banner recovery (placeholder, aktif di 1c), 4 kartu metrik, ION Applications, tabel Services (4 kolom), tabel Processes, cari, Refresh | M | T03, T14, T15, T16 | Sesuai UI/UX §4.1; 4 kartu + tabel service terlihat tanpa scroll di 1024×768; Refresh membaca ulang mesin |
 | **T18** ✅ | **`HistoryScreen` skeleton** — tabel (Time, Component, Build, Outcome), detail di bawah tabel, EmptyState | S | T16 | "No deployments yet" saat kosong; tabel terisi dari file contoh |
 | **T19** | **QA tata letak 1024×768** — checklist UI/UX §9 untuk semua layar (100% dan 125%) | S | T08, T12, T17, T18 | Checklist lulus; temuan dicatat sebagai tiket |
 
