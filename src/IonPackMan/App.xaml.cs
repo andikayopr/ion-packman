@@ -23,7 +23,15 @@ public partial class App : Application
 
         base.OnStartup(e);
 
-        var services = AppServices.Create(Paths.ReleaseDirectory, Paths.MachineIni);
+        var (options, argumentError) = StartupOptions.Parse(e.Args);
+        if (options is null)
+        {
+            MessageBox.Show(argumentError, "ION PackMan", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Shutdown();
+            return;
+        }
+
+        var services = AppServices.Create(options.ReleaseDirectory, options.MachineIni);
         // 'window' dipakai toast dan Open; keduanya hanya dipanggil setelah konstruktor selesai. Selalu lewat lambda:
         // method group (window.Open) akan dievaluasi sekarang, saat window masih null, dan membuat aplikasi crash.
         MainWindow window = null!;

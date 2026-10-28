@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Sandbox "mesin ATM" untuk uji manual ION PackMan Tahap 1c. JALANKAN HANYA DI VM / MESIN DEV, sebagai Administrator.
+  Sandbox "mesin ATM" untuk uji manual ION PackMan Tahap 1c (satu aplikasi admin, tanpa Agent). JALANKAN HANYA DI VM / MESIN DEV, sebagai Administrator.
 
 .DESCRIPTION
   Semua berada di C:\PackManTest dan HKLM\SOFTWARE\WOW6432Node\PackManTest. Tidak menyentuh D:\ION, D:\APCONTAINER,
@@ -45,7 +45,7 @@ $pmKey   = "HKLM\$RegKey"
 function Write-PackManConfig {
     Write-Text $machine "[Meta]`r`nSchemaVersion=1.0`r`n`r`n[Machine]`r`nMachineName=$env:COMPUTERNAME`r`nEnvironment=Development`r`nProfile=`r`n`r`n[InstallLocations]`r`nTEST=$Root`r`n`r`n[PackMan]`r`nLocalCacheDirectory=$cache`r`n"
     Write-Text (Join-Path $release 'Config\allowlist.ini') "[Meta]`r`nSchemaVersion=1.0`r`n`r`n[BaseDirectories]`r`nTEST=$Root`r`n`r`n[RegistryKeys]`r`nWebUI=$pmKey`r`n`r`n[IniFiles]`r`nWebUIUXCNFG=$ini`r`n`r`n[Services]`r`nSvc=$ServiceName`r`n"
-    Write-Text (Join-Path $release 'Components\wind\wind-2.1.0.ini') "[Meta]`r`nSchemaVersion=1.0`r`n`r`n[Component]`r`nId=wind`r`nDisplayName=WIND (uji)`r`nReleaseVersion=2.1.0`r`nBuildReference=`r`n`r`n[Installation]`r`nMode=in-place`r`nTargetDirectory=$target`r`n`r`n[WindowsService]`r`nServiceName=$ServiceName`r`n`r`n[LocalBuild]`r`nFolderName=`r`nFileCount=`r`nImportedAt=`r`nChecksumFile=`r`n"
+    Write-Text (Join-Path $release 'Components\wind\wind-2.1.0.ini') "[Meta]`r`nSchemaVersion=1.0`r`n`r`n[Component]`r`nId=wind`r`nDisplayName=WIND (uji)`r`nReleaseVersion=2.1.0`r`nBuildReference=`r`n`r`n[Installation]`r`nMode=in-place`r`nTargetDirectory=$target`r`n`r`n[WindowsService]`r`nServiceName=$ServiceName`r`n"
     Write-Text (Join-Path $release 'Profiles\WINDTEST.ini') "[Meta]`r`nSchemaVersion=1.0`r`n`r`n[Profile]`r`nId=WINDTEST`r`nDisplayName=Wind Test`r`nVersion=1.0.0`r`nDeploymentMode=in-place`r`n`r`n[Features]`r`nWindWebUI=true`r`nJnlLog=true`r`n`r`n[Component:wind]`r`nVersion=2.1.0`r`nDependsOn=`r`n`r`n[Registry:WebUISupport]`r`nKey=$pmKey`r`nValueName=Support`r`nType=DWORD`r`nValue=1`r`nFeature=WindWebUI`r`n`r`n[Registry:WebUIDisplayFlag]`r`nKey=$pmKey`r`nValueName=DisplayFlag`r`nType=DWORD`r`nValue=1`r`nFeature=WindWebUI`r`n`r`n[Ini:WebUISupport]`r`nFile=$ini`r`nSection=WebUI`r`nKey=Support`r`nValue=1`r`nFeature=WindWebUI`r`n`r`n[Ini:WebUIJnlLog]`r`nFile=$ini`r`nSection=Debug`r`nKey=JNLLog`r`nValue=1`r`nFeature=JnlLog`r`n"
 }
 
@@ -76,7 +76,7 @@ switch ($Action) {
 
     Write-Host "Sandbox siap di $Root"
     Write-Host "Jalankan PackMan:"
-    Write-Host "  IonPackMan.App.exe --release `"$release`" --machine `"$machine`""
+    Write-Host "  IonPackMan.exe --release `"$release`" --machine `"$machine`"   (UAC muncul sekali saat dibuka)"
     Write-Host "Folder build untuk diimpor: $src"
 }
 
@@ -90,7 +90,7 @@ switch ($Action) {
     (New-Object Random 42).NextBytes($buf)
     1..400 | ForEach-Object { [IO.File]::WriteAllBytes((Join-Path $src ("f{0:D3}.bin" -f $_)), $buf) }
     [IO.File]::WriteAllText((Join-Path $src 'a.dll'), 'versi-baru-a', $utf8)
-    Write-Host "Build besar siap: 401 file di $src. Impor ulang lewat UI (hapus Cache\Builds\wind\2.1.0 jika sudah pernah diimpor)."
+    Write-Host "Build besar siap: 401 file di $src. Impor ulang lewat UI (hapus Cache\Builds\wind@2.1.0 jika sudah pernah diimpor)."
 }
 
 'State' {
@@ -109,7 +109,7 @@ switch ($Action) {
     Write-Host '=== SERVICE ==='
     Get-Service $ServiceName | Select-Object Name, Status, StartType | Format-Table | Out-String
     Write-Host '=== CACHE ==='
-    foreach ($d in 'Journal', 'History', 'Backups', 'Builds') {
+    foreach ($d in 'Backups', 'History', 'Builds') {
         $p = Join-Path $cache $d
         '{0,-8}: {1}' -f $d, $(if (Test-Path $p) { (Get-ChildItem $p | Select-Object -ExpandProperty Name) -join ', ' } else { '-' })
     }
