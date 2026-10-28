@@ -1,0 +1,211 @@
+<UserControl x:Class="IonPackMan.Screens.DevConsoleScreen"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:IonPackMan.Controls">
+    <!-- Developer Console (T27, UI/UX 4.4): pilih -> Preview -> Execute. Logika ada di Deployment/*; layar hanya menampilkan dan mengunci alur. -->
+    <UserControl.Resources>
+        <!-- Expander "Show file list": judul teks dengan panah, tanpa kotak bawaan -->
+        <Style x:Key="FileListExpander" TargetType="Expander">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Expander">
+                        <StackPanel>
+                            <ToggleButton x:Name="Head" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          Cursor="Hand" HorizontalAlignment="Left" Focusable="True" Margin="0,2,0,0">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                                            <TextBlock x:Name="Arrow" Text="▸" Width="14" Foreground="{StaticResource Brush.Blue}"/>
+                                            <TextBlock Text="{Binding Header, RelativeSource={RelativeSource AncestorType=Expander}}" FontSize="12"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource Brush.Blue}"/>
+                                        </StackPanel>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Arrow" Property="Text" Value="▾"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="Body" Visibility="Collapsed" Margin="0,6,0,0"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="Body" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ReadOnlyBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="Background" Value="{StaticResource Brush.TableHeader}"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextSoft}"/>
+            <Setter Property="Focusable" Value="True"/>
+        </Style>
+        <Style x:Key="FieldHint" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,3,0,0"/>
+            <Setter Property="MaxHeight" Value="46"/>
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Baris 0: isi yang bisa di-scroll sendiri. Baris 1: action bar lengket (selalu terlihat). -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <ScrollViewer x:Name="BodyScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="0,0,4,0">
+                <!-- Page head -->
+                <DockPanel Margin="0,0,0,12">
+                    <c:StatusPill DockPanel.Dock="Right" Text="Direct mode" Kind="Info" VerticalAlignment="Top" Margin="0,6,0,0"/>
+                    <StackPanel>
+                        <TextBlock Text="Developer Console" Style="{StaticResource PageTitle}"/>
+                        <TextBlock Text="Choose what to change, preview the plan, then execute." Style="{StaticResource PageSubtitle}"/>
+                    </StackPanel>
+                </DockPanel>
+
+                <!-- Terkunci: bukan Development, atau ada backup tertunda. Tidak ada form. -->
+                <HeaderedContentControl x:Name="LockedCard" Style="{StaticResource Card}" Visibility="Collapsed">
+                    <StackPanel>
+                        <c:EmptyState x:Name="LockedEmpty" Icon="🔒" Title="Only available on Development machines"/>
+                        <c:Notice x:Name="LockedNotice" Kind="Error" Visibility="Collapsed">
+                            <TextBlock x:Name="LockedNoticeText"/>
+                        </c:Notice>
+                    </StackPanel>
+                </HeaderedContentControl>
+
+                <StackPanel x:Name="FormPanel">
+                    <c:Notice Kind="Info" Margin="0,0,0,12">
+                        <TextBlock Text="Executes on THIS machine. A backup is created first."/>
+                    </c:Notice>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 1. Target & source -->
+                        <HeaderedContentControl Grid.Column="0" Style="{StaticResource Card}" Header="1. Target &amp; source">
+                            <StackPanel>
+                                <StackPanel Margin="0,0,0,8">
+                                    <DockPanel>
+                                        <TextBlock x:Name="ProfileState" DockPanel.Dock="Right" Style="{StaticResource MutedText}" FontSize="11"/>
+                                        <TextBlock Text="Profile" Style="{StaticResource FieldLabel}"/>
+                                    </DockPanel>
+                                    <ComboBox x:Name="ProfileBox" SelectionChanged="OnProfileChanged" AutomationProperties.Name="Profile"/>
+                                    <TextBlock x:Name="ProfileHint" Style="{StaticResource FieldHint}" Visibility="Collapsed"/>
+                                </StackPanel>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Component" Style="{StaticResource FieldLabel}"/>
+                                        <ComboBox x:Name="ComponentBox" SelectionChanged="OnComponentChanged" AutomationProperties.Name="Component"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Imported build" Style="{StaticResource FieldLabel}"/>
+                                        <ComboBox x:Name="BuildBox" DisplayMemberPath="Text" SelectedValuePath="Version"
+                                                  SelectionChanged="OnBuildChanged" AutomationProperties.Name="Imported build"/>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock x:Name="BuildHint" Style="{StaticResource FieldHint}" Margin="0,-4,0,8" Visibility="Collapsed"/>
+                                <StackPanel Margin="0,0,0,8">
+                                    <TextBlock Text="Target directory (from the component)" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox x:Name="TargetBox" Style="{StaticResource ReadOnlyBox}" AutomationProperties.Name="Target directory"/>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Windows service name (from the component)" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox x:Name="ServiceBox" Style="{StaticResource ReadOnlyBox}" AutomationProperties.Name="Windows service name"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </HeaderedContentControl>
+
+                        <!-- 2. Operations -->
+                        <HeaderedContentControl Grid.Column="2" Style="{StaticResource Card}" Header="2. Operations">
+                            <StackPanel>
+                                <CheckBox x:Name="DeployBox" Content="Deploy files" IsChecked="True" Checked="OnOperationChanged" Unchecked="OnOperationChanged"/>
+                                <TextBlock Text="A running service is stopped and started automatically" Style="{StaticResource FieldHint}" Margin="22,-2,0,8"/>
+                                <CheckBox x:Name="ConfigBox" Content="Apply config (Registry/INI)" Margin="0,4" Checked="OnOperationChanged" Unchecked="OnOperationChanged"/>
+                                <CheckBox x:Name="RestartBox" Content="Restart service" Margin="0,4" Checked="OnOperationChanged" Unchecked="OnOperationChanged"/>
+                                <TextBlock Text="Nothing runs until you press Execute. Changing any choice clears the preview."
+                                           Style="{StaticResource FieldHint}" Margin="0,12,0,0"/>
+                            </StackPanel>
+                        </HeaderedContentControl>
+                    </Grid>
+
+                    <!-- Execution Preview / hasil -->
+                    <HeaderedContentControl x:Name="PreviewCard" Style="{StaticResource Card}" Header="Execution Preview" Margin="0,12,0,0">
+                        <StackPanel>
+                            <c:EmptyState x:Name="PreviewEmpty" Icon="◷" Title="No plan prepared"
+                                          Message="Choose what to do, then press Preview plan."/>
+
+                            <c:Notice x:Name="PreviewErrors" Kind="Error" Visibility="Collapsed" Margin="0">
+                                <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel x:Name="ErrorLines"/>
+                                </ScrollViewer>
+                            </c:Notice>
+
+                            <StackPanel x:Name="PlanPanel" Visibility="Collapsed">
+                                <StackPanel x:Name="PlanRows"/>
+                                <Expander x:Name="FileListExpander" Header="Show file list" Style="{StaticResource FileListExpander}" IsExpanded="False">
+                                    <Border BorderBrush="{StaticResource Brush.Line}" BorderThickness="1" CornerRadius="8" Padding="8,4">
+                                        <ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsControl x:Name="FileList">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,2">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="64"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="80"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="{Binding Change}" FontSize="12" FontWeight="SemiBold" Foreground="{Binding Brush}"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding Path}" FontSize="12" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}"/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding Size}" FontSize="12" TextAlignment="Right" Foreground="{StaticResource Brush.Muted}"/>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Expander>
+                            </StackPanel>
+
+                            <StackPanel x:Name="ResultPanel" Visibility="Collapsed">
+                                <c:Notice x:Name="ResultNotice" Margin="0">
+                                    <StackPanel x:Name="ResultLines"/>
+                                </c:Notice>
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <Button x:Name="OpenBackupButton" Content="Open backup folder" Click="OnOpenBackupClick"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </HeaderedContentControl>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Action bar lengket -->
+        <Border x:Name="ActionBar" Grid.Row="1" Margin="0,10,0,0" Padding="14,8" CornerRadius="12"
+                Background="{StaticResource Brush.Panel}" BorderBrush="{StaticResource Brush.Line}" BorderThickness="1">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button x:Name="PreviewButton" Content="Preview plan" Margin="0,0,8,0" Click="OnPreviewClick"/>
+                    <Button x:Name="ExecuteButton" Content="Execute" Style="{StaticResource PrimaryButton}" Click="OnExecuteClick"/>
+                </StackPanel>
+                <TextBlock x:Name="StatusText" VerticalAlignment="Center" Margin="0,0,12,0" TextTrimming="CharacterEllipsis" FontSize="12"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

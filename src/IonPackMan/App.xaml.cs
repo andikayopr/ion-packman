@@ -24,8 +24,10 @@ public partial class App : Application
         base.OnStartup(e);
 
         var services = AppServices.Create(Paths.ReleaseDirectory, Paths.MachineIni);
-        MainWindow window = null!;   // dipakai toast; baru terisi setelah konstruktor, sebelum ada yang menekan tombol
-        window = new MainWindow(key => ScreenFactory.Create(key, services, text => window.ShowToast(text)),
+        // 'window' dipakai toast dan Open; keduanya hanya dipanggil setelah konstruktor selesai. Selalu lewat lambda:
+        // method group (window.Open) akan dievaluasi sekarang, saat window masih null, dan membuat aplikasi crash.
+        MainWindow window = null!;
+        window = new MainWindow(key => ScreenFactory.Create(key, services, text => window.ShowToast(text), k => window.Open(k)),
             hasPendingRecovery: () => services.Recovery?.HasPending() == true);
         window.SetMachine(services.Machine, services.MachineErrors);
         window.Show();

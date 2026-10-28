@@ -134,8 +134,7 @@
                     <Button x:Name="ExportIniButton" Content="Export INI…" Margin="0,0,8,8" Click="OnExportIni"/>
                     <Button x:Name="ImportBuildButton" Content="Import local build…" Margin="0,0,8,8" Click="OnImportBuild"
                             ToolTip="Save this release first, then import its build folder."/>
-                    <Button x:Name="UseInConsoleButton" Content="Use in Developer Console" Margin="0,0,0,8" IsEnabled="False"
-                            ToolTip="Available in iteration 1c"/>
+                    <Button x:Name="UseInConsoleButton" Content="Use in Developer Console" Margin="0,0,0,8" Click="OnUseInConsole"/>
                 </WrapPanel>
                 <TextBlock x:Name="BuildText" Style="{StaticResource MutedText}" Margin="0,0,0,8" TextTrimming="CharacterEllipsis"/>
 

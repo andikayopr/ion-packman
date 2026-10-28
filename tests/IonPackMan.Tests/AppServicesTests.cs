@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using IonPackMan.Screens;
 using Xunit;
 
@@ -59,7 +60,7 @@ public class AppServicesTests : IDisposable
                 [MainWindow.Components] = typeof(ComponentsScreen),
                 [MainWindow.Profiles] = typeof(ProfilesScreen),
                 [MainWindow.History] = typeof(HistoryScreen),
-                [MainWindow.DevConsole] = typeof(PlaceholderScreen),   // dibuat di iterasi 1c
+                [MainWindow.DevConsole] = typeof(DevConsoleScreen),
             };
 
             foreach (var (key, type) in expected)
@@ -74,7 +75,7 @@ public class AppServicesTests : IDisposable
         {
             var s = AppServices.Create(Path.Combine(_dir, "no-release"), Path.Combine(_dir, "nope.ini"));
 
-            foreach (string key in new[] { MainWindow.Components, MainWindow.Profiles, MainWindow.History })
+            foreach (string key in new[] { MainWindow.Components, MainWindow.Profiles, MainWindow.History, MainWindow.DevConsole })
                 Assert.IsType<PlaceholderScreen>(ScreenFactory.Create(key, s, _ => { }));
             Assert.IsType<DashboardScreen>(ScreenFactory.Create(MainWindow.Dashboard, s, _ => { }));
         });
@@ -102,5 +103,49 @@ public class AppServicesTests : IDisposable
         });
 
         Assert.True(File.Exists(png));
+    }
+
+    [Fact]
+    public void UseInDeveloperConsole_OpensTheConsole_WithTheComponentSelected()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = AppServices.Create(AppContext.BaseDirectory, WriteMachineIni());
+            // Dirangkai persis seperti App.OnStartup: 'window' hanya dipakai lewat lambda (method group akan crash karena masih null).
+            MainWindow window = null!;
+            window = new MainWindow(key => ScreenFactory.Create(key, s, t => window.ShowToast(t), k => window.Open(k)));
+            window.SetMachine(s.Machine, s.MachineErrors);
+
+            window.Navigate(MainWindow.Components);
+            var components = (ComponentsScreen)window.CurrentScreen;
+            components.OpenComponent("wind");
+            ((Button)components.FindName("UseInConsoleButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            Assert.Equal(MainWindow.DevConsole, window.CurrentKey);
+            var console = Assert.IsType<DevConsoleScreen>(window.CurrentScreen);
+            Assert.Equal("wind", ((ComboBox)console.FindName("ComponentBox")).SelectedItem);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public void UseInDeveloperConsole_OnANonDevelopmentMachine_ExplainsInsteadOfOpening()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = AppServices.Create(AppContext.BaseDirectory, WriteMachineIni("Production"));
+            MainWindow window = null!;
+            window = new MainWindow(key => ScreenFactory.Create(key, s, t => window.ShowToast(t), k => window.Open(k)));
+            window.SetMachine(s.Machine, s.MachineErrors);
+
+            window.Navigate(MainWindow.Components);
+            var components = (ComponentsScreen)window.CurrentScreen;
+            components.OpenComponent("wind");
+            ((Button)components.FindName("UseInConsoleButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            Assert.Equal(MainWindow.Components, window.CurrentKey);   // tetap di Components
+            Assert.Equal("Only available on Development machines", ((IonPackMan.Controls.Toast)window.FindName("ToastBox")).Message);
+            window.Close();
+        });
     }
 }

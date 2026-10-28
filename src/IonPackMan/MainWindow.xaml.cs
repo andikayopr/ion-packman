@@ -102,6 +102,21 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Membuka layar menu dan mengembalikannya (dipakai tombol "Use in Developer Console"). Menu yang terkunci
+    /// tidak dibuka; alasannya ditampilkan sebagai toast.
+    /// </summary>
+    public FrameworkElement Open(string key)
+    {
+        if (!_navButtons[key].IsEnabled)
+        {
+            ShowToast(_navButtons[key].ToolTip as string ?? "This screen is not available.");
+            return CurrentScreen;
+        }
+        Navigate(key);
+        return CurrentScreen;
+    }
+
+    /// <summary>
     /// Menampilkan status mesin di topbar dan mengunci menu yang hanya untuk Development (D6/D7).
     /// config null = machine.ini tidak bisa dibaca → titik merah dan Developer Console terkunci.
     /// </summary>

@@ -8,7 +8,7 @@ namespace IonPackMan.Tests;
 
 /// <summary>
 /// WPF hanya boleh dipakai dari satu thread STA dan hanya boleh ada satu Application per proses.
-/// Semua test UI dijalankan lewat thread khusus ini; Application dibuat dari App.xaml asli (tema ikut termuat).
+/// Semua test UI dijalankan lewat thread khusus ini; Application dibuat polos dengan Theme.xaml yang sama dengan aplikasi.
 /// </summary>
 internal static class WpfHost
 {
@@ -20,8 +20,13 @@ internal static class WpfHost
         using var ready = new ManualResetEventSlim();
         var thread = new Thread(() =>
         {
-            var app = new App();
-            app.InitializeComponent();
+            // Application polos + tema saja. JANGAN memakai App: itu menjalankan OnStartup asli (mutex satu-instance,
+            // AppServices dan MainWindow sungguhan, MessageBox bila aplikasi asli sedang berjalan).
+            var app = new Application();
+            app.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri("pack://application:,,,/IonPackMan;component/Resources/Theme.xaml"),
+            });
             dispatcher = Dispatcher.CurrentDispatcher;
             ready.Set();
             Dispatcher.Run();

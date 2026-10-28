@@ -31,6 +31,8 @@ public partial class ComponentsScreen : UserControl, IScreen
 
     /// <summary>Dipicu bila pengguna meminta import local build untuk release yang tampil (sudah tersimpan).</summary>
     public event Action<ComponentRelease>? ImportBuildRequested;
+    /// <summary>Pengguna ingin memakai release ini di Developer Console (P1-4); MainWindow membuka konsol dan memilihnya.</summary>
+    public event Action<ComponentRelease>? UseInConsoleRequested;
 
     /// <summary>Pesan singkat sukses untuk toast di MainWindow.</summary>
     public event Action<string>? Message;
@@ -204,6 +206,8 @@ public partial class ComponentsScreen : UserControl, IScreen
         List<string> saved = release is null ? new() : _store.ListVersions(release.Id);
         bool isSaved = release is not null && saved.Contains(release.ReleaseVersion);
         ImportBuildButton.IsEnabled = isSaved;
+        UseInConsoleButton.IsEnabled = isSaved;
+        UseInConsoleButton.ToolTip = isSaved ? "Open this release in the Developer Console" : "Save the release first";
         LoadButton.IsEnabled = release is not null;
         ExportIniButton.IsEnabled = release is not null;
         ImportIniButton.IsEnabled = release is not null;
@@ -341,6 +345,12 @@ public partial class ComponentsScreen : UserControl, IScreen
         }
         Show(ReleaseNotice, StatusKind.Success, [$"Exported to {path}."]);
         Message?.Invoke("Component INI exported.");
+    }
+
+    private void OnUseInConsole(object sender, RoutedEventArgs e)
+    {
+        if (BuildRelease() is { } release)
+            UseInConsoleRequested?.Invoke(release);
     }
 
     private void OnImportBuild(object sender, RoutedEventArgs e)

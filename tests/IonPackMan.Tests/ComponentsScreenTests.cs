@@ -292,9 +292,28 @@ public class ComponentsScreenTests : IDisposable
             Type(Find<TextBox>(s, "VersionBox"), "4.0.0");  // belum tersimpan
             Assert.False(button.IsEnabled);
 
+            // Release yang belum tersimpan tidak bisa dipakai di Developer Console.
             var console = Find<Button>(s, "UseInConsoleButton");
             Assert.False(console.IsEnabled);
-            Assert.Equal("Available in iteration 1c", console.ToolTip);
+            Assert.Equal("Save the release first", console.ToolTip);
+        });
+    }
+
+    [Fact]
+    public void UseInConsole_IsEnabledForSavedRelease_AndRaisesEvent()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = NewScreen();
+            ComponentRelease? requested = null;
+            s.UseInConsoleRequested += r => requested = r;
+            var console = Find<Button>(s, "UseInConsoleButton");
+
+            Choose(s, "wind");
+            Assert.True(console.IsEnabled);
+            Click(console);
+
+            Assert.Equal(("wind", "2.1.0"), (requested?.Id, requested?.ReleaseVersion));
         });
     }
 
