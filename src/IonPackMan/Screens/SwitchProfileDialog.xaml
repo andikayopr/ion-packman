@@ -1,0 +1,44 @@
+<Window x:Class="IonPackMan.Screens.SwitchProfileDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:IonPackMan.Controls"
+        Style="{StaticResource {x:Type Window}}"
+        Title="Switch profile" Width="580" Height="500" MinHeight="360"
+        ResizeMode="CanResize" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Closing="OnClosing">
+    <!-- Pindah profile: preview satu rencana untuk seluruh profile, lalu Switch (konfirmasi) dan hasil. Tidak bisa ditutup saat berjalan. -->
+    <Grid Margin="20,12,20,12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock x:Name="HeaderText" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+            <TextBlock x:Name="SubText" Style="{StaticResource MutedText}" Margin="0,2,0,0"
+                       Text="Deploys every component of the profile, then marks it active. A backup is created before each component."/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <c:Notice x:Name="ErrorNotice" Kind="Error" Visibility="Collapsed" Margin="0">
+                    <StackPanel x:Name="ErrorLines"/>
+                </c:Notice>
+                <StackPanel x:Name="PlanRows"/>
+                <c:Notice x:Name="ResultNotice" Kind="Info" Visibility="Collapsed" Margin="0">
+                    <StackPanel x:Name="ResultLines"/>
+                </c:Notice>
+            </StackPanel>
+        </ScrollViewer>
+
+        <DockPanel Grid.Row="2" Margin="0,10,0,0" MinHeight="32">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="CancelButton" Content="Cancel" Margin="0,0,8,0" IsCancel="True" Click="OnCancelClick"/>
+                <Button x:Name="SwitchButton" Content="Switch" Style="{StaticResource PrimaryButton}" Click="OnSwitchClick"/>
+                <Button x:Name="CloseButton" Content="Close" Style="{StaticResource PrimaryButton}" Visibility="Collapsed" IsDefault="True" Click="OnCancelClick"/>
+            </StackPanel>
+            <TextBlock x:Name="StatusText" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,12,0"/>
+        </DockPanel>
+    </Grid>
+</Window>

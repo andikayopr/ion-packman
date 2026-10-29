@@ -102,6 +102,14 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Switch" Width="80">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="Switch" Tag="{Binding Id}" IsEnabled="{Binding CanSwitch}" Style="{StaticResource RowButton}" Click="OnSwitchClick"
+                                                    ToolTip="Deploy every component of this profile and make it the active profile"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="Open" Width="80">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>

@@ -205,8 +205,6 @@
                 Background="{StaticResource Brush.Panel}" BorderBrush="{StaticResource Brush.Line}" BorderThickness="1">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button x:Name="SwitchButton" Content="Preview switch" Margin="0,0,8,0" Click="OnPreviewSwitchClick"
-                            ToolTip="Whole profile: deploy components that are not installed, apply config and start those that are"/>
                     <Button x:Name="PreviewButton" Content="Preview plan" Margin="0,0,8,0" Click="OnPreviewClick"/>
                     <Button x:Name="ExecuteButton" Content="Execute" Style="{StaticResource PrimaryButton}" Click="OnExecuteClick"/>
                 </StackPanel>

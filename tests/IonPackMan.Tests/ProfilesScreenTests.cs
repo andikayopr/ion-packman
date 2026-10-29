@@ -178,7 +178,7 @@ public class ProfilesScreenTests : IDisposable
             var w = Show(s);
             try
             {
-                var open = WpfHost.Descendants<Button>(F<DataGrid>(s, "CatalogGrid")).First(b => b.Tag as string == "QRISTAP");
+                var open = WpfHost.Descendants<Button>(F<DataGrid>(s, "CatalogGrid")).First(b => b.Tag as string == "QRISTAP" && b.Content as string == "Open");
                 Click(open);
 
                 Assert.Equal("QRISTAP", F<TextBox>(s, "IdBox").Text);

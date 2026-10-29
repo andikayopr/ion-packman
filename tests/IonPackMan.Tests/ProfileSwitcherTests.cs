@@ -7,7 +7,7 @@ namespace IonPackMan.Tests;
 
 public class ProfileSwitcherTests
 {
-    private static ProfileSwitcher SwitcherFor(TestDeployEnvironment env)
+    internal static ProfileSwitcher SwitcherFor(TestDeployEnvironment env)
     {
         var backups = new BackupStore(env.Cache, env.Registry, env.Services, env.Allow);
         var deployer = new Deployer(env.Machine, env.Guards, backups, env.Services, env.Processes, env.Registry,
@@ -18,7 +18,7 @@ public class ProfileSwitcherTests
     }
 
     // TestDeployEnvironment: TESTP = ion-middleware (tanpa service, folder Mw belum ada, belum ada build) + wind (ada, service WIND Running).
-    private static void ImportMiddlewareBuild(TestDeployEnvironment env)
+    internal static void ImportMiddlewareBuild(TestDeployEnvironment env)
     {
         var (build, errors) = env.Builds.Import("ion-middleware", "1.8.2", env.SourceBuild);
         Assert.True(build is not null, string.Join("; ", errors));

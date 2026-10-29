@@ -37,7 +37,6 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     private readonly BuildImporter _builds;
     private readonly PlanBuilder _planner;
     private readonly Deployer _deployer;
-    private readonly ProfileSwitcher _switcher;
     private readonly BackupStore _backups;
     private readonly ProfileDetector? _detector;
 
@@ -45,7 +44,6 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     private bool _locked;
     private bool _recoveryNeeded;
     private DeploymentPlan? _plan;
-    private SwitchPlan? _switchPlan;        // rencana pindah profile; saling meniadakan dengan _plan
     private List<string> _errors = [];
     private DeploymentResult? _result;
     private string? _detectedProfile;
@@ -56,9 +54,8 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     public event Action<string>? Message;
 
     public DevConsoleScreen(MachineConfig machine, ProfileStore profiles, ComponentStore components, BuildImporter builds,
-        PlanBuilder planner, Deployer deployer, ProfileSwitcher switcher, BackupStore backups, ProfileDetector? detector)
+        PlanBuilder planner, Deployer deployer, BackupStore backups, ProfileDetector? detector)
     {
-        _switcher = switcher;
         _machine = machine;
         _profiles = profiles;
         _components = components;
@@ -82,10 +79,6 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
 
     /// <summary>Plan hasil Preview terakhir yang valid; null bila belum ada atau sudah dihapus.</summary>
     public DeploymentPlan? CurrentPlan => _plan;
-
-    /// <summary>Rencana pindah profile hasil Preview switch terakhir yang valid; null bila belum ada atau sudah dihapus.</summary>
-    public SwitchPlan? CurrentSwitchPlan => _switchPlan;
-
     /// <summary>Hasil eksekusi terakhir yang sedang ditampilkan di card Execution Preview.</summary>
     public DeploymentResult? LastResult => _result;
 
@@ -158,11 +151,15 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     private void LoadProfiles()
     {
         string? previous = SelectedProfile;
-        var ids = _profiles.ListIds();
-        ProfileBox.ItemsSource = ids;
+        var all = _profiles.ListIds();
 
         var detection = _detector?.Detect(_machine);
-        _detectedProfile = detection?.ProfileId is { } d ? ids.FirstOrDefault(i => i.Equals(d, StringComparison.OrdinalIgnoreCase)) : null;
+        _detectedProfile = detection?.ProfileId is { } d ? all.FirstOrDefault(i => i.Equals(d, StringComparison.OrdinalIgnoreCase)) : null;
+
+        // Developer Console mengerjakan patch per component di profile aktif; pindah profile ada di layar Profiles.
+        // Profile aktif belum diketahui: pengguna wajib memilih sendiri (PRD R15).
+        var ids = _detectedProfile is not null ? [_detectedProfile] : all;
+        ProfileBox.ItemsSource = ids;
 
         if (previous is not null && ids.Contains(previous))
             ProfileBox.SelectedItem = previous;
@@ -316,7 +313,7 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
             return;
 
         var candidates = new List<string>();
-        foreach (string id in _profiles.ListIds())
+        foreach (string id in ProfileBox.Items.OfType<string>())
             if (_profiles.Load(id).Profile?.Components.Any(c => c.Id == componentId) == true)
                 candidates.Add(id);
 
@@ -353,7 +350,6 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     private void ClearPreview()
     {
         _plan = null;
-        _switchPlan = null;
         _errors = [];
         _result = null;
         ShowPreviewState();
@@ -366,7 +362,6 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
             return false;
 
         _result = null;
-        _switchPlan = null;
         var request = new PlanRequest(SelectedProfile!, SelectedComponent!, SelectedVersion!,
             DeployBox.IsChecked == true, ConfigBox.IsChecked == true, RestartBox.IsChecked == true,
             SnapshotFolder: SnapshotBox.IsChecked == true);
@@ -395,40 +390,6 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
 
     private void OnPreviewClick(object sender, RoutedEventArgs e) => PreviewPlan();
 
-    private bool CanPreviewSwitch => !_locked && !_recoveryNeeded && !IsBusy && SelectedProfile is not null;
-
-    /// <summary>Menyusun rencana pindah ke profile terpilih (sama dengan menekan Preview switch). True bila valid.</summary>
-    public bool PreviewSwitch()
-    {
-        if (!CanPreviewSwitch)
-            return false;
-
-        _result = null;
-        _plan = null;
-        var previous = Mouse.OverrideCursor;
-        Mouse.OverrideCursor = Cursors.Wait;
-        try
-        {
-            var (plan, errors) = _switcher.Build(SelectedProfile!);
-            _switchPlan = plan;
-            _errors = errors;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
-        {
-            _switchPlan = null;
-            _errors = [$"The plan could not be prepared: {ex.Message}"];
-        }
-        finally
-        {
-            Mouse.OverrideCursor = previous;
-        }
-
-        ShowPreviewState();
-        return _switchPlan is not null;
-    }
-
-    private void OnPreviewSwitchClick(object sender, RoutedEventArgs e) => PreviewSwitch();
-
     private void ShowPreviewState()
     {
         PreviewEmpty.Visibility = Visibility.Collapsed;
@@ -447,11 +408,6 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
             foreach (string error in _errors)
                 ErrorLines.Children.Add(new TextBlock { Text = "• " + error, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) });
             PreviewErrors.Visibility = Visibility.Visible;
-        }
-        else if (_switchPlan is not null)
-        {
-            ShowSwitchPlan(_switchPlan);
-            PlanPanel.Visibility = Visibility.Visible;
         }
         else if (_plan is not null)
         {
@@ -518,32 +474,6 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
         FileListExpander.IsExpanded = false;
     }
 
-    // Satu baris per component, urut sesuai eksekusi, lalu langkah akhir: hentikan service Profile lama, tandai Profile aktif.
-    private void ShowSwitchPlan(SwitchPlan switchPlan)
-    {
-        PlanRows.Children.Clear();
-        AddPlanRow("Switch", $"{switchPlan.PreviousProfileId ?? "(unknown)"} → {switchPlan.ProfileId}");
-
-        foreach (var plan in switchPlan.Steps)
-        {
-            int replace = plan.Files.Count(f => f.Change == FileChange.Replace);
-            int added = plan.Files.Count(f => f.Change == FileChange.New);
-            int same = plan.Files.Count(f => f.Change == FileChange.Same);
-            var steps = new List<string> { $"deploy {plan.ReleaseVersion}: {replace} replace, {added} new, {same} same" };
-            if (plan.ApplyConfig) steps.Add($"apply config ({plan.RegistryChanges.Count} Registry, {plan.IniChanges.Count} INI)");
-            if (plan.ServiceName.Length > 0)
-                steps.Add(plan.StartServiceAfter ? $"{(plan.StopServiceBefore ? "restart" : "start")} {plan.ServiceName}" : $"{plan.ServiceName} not installed yet");
-            AddPlanRow(plan.ComponentId, string.Join("\n", steps));
-        }
-
-        AddPlanRow("Stop", switchPlan.ServicesToStop.Count > 0
-            ? string.Join("\n", switchPlan.ServicesToStop.Select(s => $"{s.ServiceName} ({s.ComponentId}, not used by {switchPlan.ProfileId})"))
-            : switchPlan.PreviousProfileId is null ? "Previous profile unknown: no service is stopped" : "No service of the previous profile needs to stop");
-        AddPlanRow("Activate", $"Writes Profile={switchPlan.ProfileId} to machine.ini after everything above succeeds");
-        AddPlanRow("Backup", "Each component gets its own backup folder before it is changed");
-        FileListExpander.Visibility = Visibility.Collapsed;
-    }
-
     private void AddPlanRow(string label, string value)
     {
         var text = new TextBlock { Text = value, TextWrapping = TextWrapping.Wrap, ToolTip = value };
@@ -576,10 +506,7 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
                 AddResultLine($"Whole-folder snapshot kept at {Paths.SnapshotDir(result.BackupDirectory)}");
         }
         foreach (string error in result.Errors)
-            AddResultLine("• " + error);
-        foreach (string warning in result.Warnings ?? [])
-            AddResultLine("⚠ " + warning, bold: true, top: 6);
-        if (result.RestoreFailures.Count > 0)
+            AddResultLine("• " + error);        if (result.RestoreFailures.Count > 0)
         {
             AddResultLine("These parts could not be restored:", bold: true, top: 6);
             foreach (string failure in result.RestoreFailures)
@@ -625,8 +552,7 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     private void UpdateActionBar()
     {
         PreviewButton.IsEnabled = CanPreview;
-        SwitchButton.IsEnabled = CanPreviewSwitch;
-        ExecuteButton.IsEnabled = (_plan is not null || _switchPlan is not null) && !_locked && !_recoveryNeeded && !IsBusy;
+        ExecuteButton.IsEnabled = _plan is not null && !_locked && !_recoveryNeeded && !IsBusy;
 
         string status = IsBusy ? "Executing… keep ION PackMan open until it finishes."
             : _recoveryNeeded ? "Recovery needed: restore the backup from the Dashboard before continuing."
@@ -634,7 +560,6 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
             : SelectedComponent is null ? "Select a component"
             : SelectedVersion is null ? "Select an imported build"
             : !HasOperation ? "Select at least one operation"
-            : _switchPlan is not null ? $"Ready. Execute will switch {_machine.MachineName} to {_switchPlan.ProfileId}."
             : _plan is not null ? $"Ready. Execute will change {_machine.MachineName}."
             : _errors.Count > 0 ? "Fix the problems above"
             : _result is not null ? "Finished. Preview the plan again to run another execution."
@@ -649,27 +574,18 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
 
     private async void OnExecuteClick(object sender, RoutedEventArgs e)
     {
-        if ((_plan is null && _switchPlan is null) || IsBusy)
+        if (_plan is null || IsBusy)
             return;
 
         var owner = Window.GetWindow(this);
-        string question = _switchPlan is not null
-            ? $"Switch {_machine.MachineName} (Development) to profile {_switchPlan.ProfileId}? A backup is created before each component."
-            : $"Execute on {_machine.MachineName} (Development)? A backup is created first.";
+        string question = $"Execute on {_machine.MachineName} (Development)? A backup is created first.";
         var answer = owner is null
             ? MessageBox.Show(question, "Execute", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel)
             : MessageBox.Show(owner, question, "Execute", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel);
         if (answer != MessageBoxResult.OK)
             return;
 
-        // Dialog progres menampilkan satu plan; pindah profile berjalan beberapa plan, jadi memakai status "Executing…" di action bar.
-        if (_switchPlan is not null)
-        {
-            await ExecutePlanAsync();
-            return;
-        }
-
-        var dialog = new ProgressDialog(_plan!, _machine.MachineName);
+        var dialog = new ProgressDialog(_plan, _machine.MachineName);
         if (owner is not null)
             dialog.Owner = owner;
 
@@ -691,11 +607,10 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     /// </summary>
     public async Task<DeploymentResult?> ExecutePlanAsync(IProgress<DeployStep>? progress = null)
     {
-        if ((_plan is null && _switchPlan is null) || _locked || _recoveryNeeded || IsBusy)
+        if (_plan is null || _locked || _recoveryNeeded || IsBusy)
             return null;
 
         var plan = _plan;
-        var switchPlan = _switchPlan;
         IsBusy = true;
         FormPanel.IsEnabled = false;
         UpdateActionBar();
@@ -703,28 +618,19 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
         DeploymentResult result;
         try
         {
-            result = await Task.Run(() => switchPlan is not null ? _switcher.Run(switchPlan, progress) : _deployer.Run(plan!, progress));
+            result = await Task.Run(() => _deployer.Run(plan, progress));
         }
         catch (Exception ex)
         {
             // Deployer menangkap kegagalan setelah backup dibuat; ini hanya untuk kejadian tak terduga sebelum itu.
-            result = new DeploymentResult(HistoryOutcome.Rejected, plan?.ExecId ?? "", [$"Unexpected error: {ex.Message}"], [], "", []);
+            result = new DeploymentResult(HistoryOutcome.Rejected, plan.ExecId, [$"Unexpected error: {ex.Message}"], [], "", []);
         }
 
         IsBusy = false;
         FormPanel.IsEnabled = true;
         _plan = null;       // satu plan, satu eksekusi: untuk menjalankan lagi, Preview ulang
-        _switchPlan = null;
         _errors = [];
         _result = result;
-
-        // Pindah profile mengubah machine.ini: label "detected" dan pilihan profile mengikuti.
-        if (switchPlan is not null)
-        {
-            _updating = true;
-            try { LoadProfiles(); }
-            finally { _updating = false; }
-        }
 
         // Bila restore tidak lengkap atau ada backup yang tersisa, konsol harus menolak apa pun sampai dipulihkan.
         try

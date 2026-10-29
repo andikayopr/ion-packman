@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using IonPackMan.Components;
 using IonPackMan.Controls;
+using IonPackMan.Deployment;
 using IonPackMan.Machine;
 using IonPackMan.Profiles;
 using Microsoft.Win32;
@@ -24,6 +25,8 @@ public partial class ProfilesScreen : UserControl, IScreen
     private readonly ComponentStore _components;
     private readonly ProfileValidator _validator;
     private readonly AllowList _allowList;
+    private readonly ProfileSwitcher? _switcher;
+    private readonly string _machineName;
 
     private List<CatalogEntry> _catalog = [];
     private List<CatalogRow> _rows = [];
@@ -35,8 +38,12 @@ public partial class ProfilesScreen : UserControl, IScreen
     /// <summary>Pesan singkat untuk toast di MainWindow.</summary>
     public event Action<string>? Message;
 
-    public ProfilesScreen(ProfileStore store, ComponentStore components, ProfileValidator validator, AllowList allowList)
+    /// <param name="switcher">null bila machine.ini atau allowlist.ini tidak valid: tombol Switch dinonaktifkan.</param>
+    public ProfilesScreen(ProfileStore store, ComponentStore components, ProfileValidator validator, AllowList allowList,
+        ProfileSwitcher? switcher = null, string machineName = "")
     {
+        _switcher = switcher;
+        _machineName = machineName;
         _store = store;
         _components = components;
         _validator = validator;
@@ -68,13 +75,14 @@ public partial class ProfilesScreen : UserControl, IScreen
             if (profile is null)
             {
                 problems.AddRange(errors);
-                _rows.Add(new CatalogRow(id, id, "—", -1, "Unreadable", StatusKind.Error, false));
+                _rows.Add(new CatalogRow(id, id, "—", -1, "Unreadable", StatusKind.Error, false, false));
                 continue;
             }
             bool valid = _validator.Validate(profile).Count == 0;
             string title = profile.DisplayName.Length > 0 && profile.DisplayName != id ? $"{profile.DisplayName} ({id})" : id;
             _rows.Add(new CatalogRow(id, title, profile.Version, profile.Components.Count,
-                valid ? "Valid" : "Invalid", valid ? StatusKind.Success : StatusKind.Error, true));
+                valid ? "Valid" : "Invalid", valid ? StatusKind.Success : StatusKind.Error, true,
+                CanSwitch: valid && _switcher is not null && profile.Components.Count > 0));
         }
 
         ShowNotice(CatalogNotice, problems.Count == 0 ? null : problems, "Some profile data cannot be read:");
@@ -185,6 +193,31 @@ public partial class ProfilesScreen : UserControl, IScreen
     {
         if (sender is FrameworkElement { Tag: string id })
             Open(id);
+    }
+
+    private void OnSwitchClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string id })
+            SwitchTo(id);
+    }
+
+    /// <summary>
+    /// Membuka dialog pindah Profile (preview, lalu Switch). Hanya di mesin Development: PlanBuilder/Guards menolak sisanya dengan
+    /// alasan yang tampil di dialog. Null bila tombol tidak tersedia (machine.ini atau allowlist.ini tidak valid).
+    /// </summary>
+    public SwitchProfileDialog? SwitchTo(string profileId)
+    {
+        if (_switcher is null)
+            return null;
+
+        var dialog = new SwitchProfileDialog(_switcher, profileId, _machineName);
+        if (Window.GetWindow(this) is { } owner)
+            dialog.Owner = owner;
+        dialog.ShowDialog();
+
+        if (dialog.Switched)
+            Message?.Invoke($"Switched to profile '{profileId}'.");
+        return dialog;
     }
 
     // ---------- Katalog ----------
@@ -458,7 +491,7 @@ public partial class ProfilesScreen : UserControl, IScreen
     }
 
     /// <param name="ComponentCount">-1 bila file tidak terbaca.</param>
-    private sealed record CatalogRow(string Id, string Title, string Version, int ComponentCount, string StatusText, StatusKind StatusKind, bool CanOpen)
+    private sealed record CatalogRow(string Id, string Title, string Version, int ComponentCount, string StatusText, StatusKind StatusKind, bool CanOpen, bool CanSwitch)
     {
         public string ComponentsText => ComponentCount < 0 ? "—" : ComponentCount.ToString();
     }

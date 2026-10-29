@@ -57,16 +57,16 @@ public static class ScreenFactory
     private static FrameworkElement CreateDevConsole(AppServices s) =>
         s.ConfigCatalogErrors.Count > 0
             ? Broken(MainWindow.DevConsole, "config-entries.ini", s.ConfigCatalogErrors)
-        : s.Machine is null || s.Profiles is null || s.Builds is null || s.Planner is null || s.Deployer is null || s.Switcher is null || s.Backups is null
+        : s.Machine is null || s.Profiles is null || s.Builds is null || s.Planner is null || s.Deployer is null || s.Backups is null
             ? Broken(MainWindow.DevConsole, s.Machine is null ? "machine.ini" : "allowlist.ini", [.. s.MachineErrors, .. s.AllowListErrors])
-            : new DevConsoleScreen(s.Machine, s.Profiles, s.Components, s.Builds, s.Planner, s.Deployer, s.Switcher, s.Backups, s.Detector);
+            : new DevConsoleScreen(s.Machine, s.Profiles, s.Components, s.Builds, s.Planner, s.Deployer, s.Backups, s.Detector);
 
     private static FrameworkElement CreateProfiles(AppServices s) =>
         s.ConfigCatalogErrors.Count > 0
             ? Broken(MainWindow.Profiles, "config-entries.ini", s.ConfigCatalogErrors)
         : s.Profiles is null || s.Validator is null || s.AllowList is null
             ? Broken(MainWindow.Profiles, "allowlist.ini", s.AllowListErrors)
-            : new ProfilesScreen(s.Profiles, s.Components, s.Validator, s.AllowList);
+            : new ProfilesScreen(s.Profiles, s.Components, s.Validator, s.AllowList, s.Switcher, s.Machine?.MachineName ?? "");
 
     private static FrameworkElement CreateHistory(AppServices s) =>
         s.History is null
