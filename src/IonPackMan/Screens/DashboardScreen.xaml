@@ -63,7 +63,11 @@
             </HeaderedContentControl>
             <HeaderedContentControl Style="{StaticResource Card}" Margin="6,0,0,0">
                 <StackPanel><TextBlock Text="Windows" Style="{StaticResource MutedText}"/><TextBlock x:Name="WindowsText" Style="{StaticResource MetricValue}" FontSize="13"
-                                                                                                       TextWrapping="Wrap" TextTrimming="None"/></StackPanel>
+                                                                                                       TextWrapping="Wrap" TextTrimming="None"/>
+                    <TextBlock Text="Processor" Style="{StaticResource MutedText}" Margin="0,8,0,0"/>
+                    <TextBlock x:Name="ProcessorText" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    <TextBlock Text="Memory (RAM)" Style="{StaticResource MutedText}" Margin="0,8,0,0"/>
+                    <TextBlock x:Name="MemoryText" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"/></StackPanel>
             </HeaderedContentControl>
         </UniformGrid>
 

@@ -115,4 +115,28 @@ public class MachineInspectorTests
         Assert.True(MachineInspector.IsUnder(@"D:\ION\wind\w.exe", @"D:\ION"));
         Assert.False(MachineInspector.IsUnder(@"D:\IONX\w.exe", @"D:\ION"));
     }
+
+    [Fact]
+    public void Inspect_ReturnsProcessorAndMemory()
+    {
+        var snap = new MachineInspector().Inspect();
+
+        Assert.Contains("logical processors", snap.Processor);
+        Assert.Contains("GB total", snap.Memory);
+    }
+
+    [Fact]
+    public void FormatProcessor_CollapsesSpaces_AndFallsBackWhenNameIsMissing()
+    {
+        Assert.Equal("Intel(R) Core(TM) i7 @ 3.00GHz · 8 logical processors",
+            MachineInspector.FormatProcessor("Intel(R)  Core(TM) i7   @ 3.00GHz", 8));
+        Assert.Equal("4 logical processors", MachineInspector.FormatProcessor("", 4));
+    }
+
+    [Fact]
+    public void FormatMemory_ShowsTotalAndFreeInGb()
+    {
+        Assert.Equal("16.0 GB total · 4.0 GB free", MachineInspector.FormatMemory(16UL << 30, 4UL << 30));
+        Assert.Equal("Unknown", MachineInspector.FormatMemory(0, 0));
+    }
 }

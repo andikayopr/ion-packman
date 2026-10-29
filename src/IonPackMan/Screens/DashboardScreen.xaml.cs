@@ -145,6 +145,8 @@ public partial class DashboardScreen : UserControl, IScreen
         ClientText.Text = s.ClientText.Length > 0 ? $"Client: {s.ClientText}" : "";
         ShowClientPicker();
         WindowsText.Text = s.WindowsVersion;
+        ProcessorText.Text = s.Processor;
+        MemoryText.Text = s.Memory;
 
         // Alasan "Unknown" harus terlihat (R1), bukan hanya di tooltip.
         ProblemNotice.Visibility = s.ProfileKind == StatusKind.Success ? Visibility.Collapsed : Visibility.Visible;

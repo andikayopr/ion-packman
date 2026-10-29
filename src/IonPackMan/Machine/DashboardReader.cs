@@ -17,7 +17,8 @@ public sealed record DashboardSnapshot(
     string DeploymentState, StatusKind DeploymentKind,
     string BaseDirectory, string ProfileConfig, string LastDeployment,
     List<ServiceRow> Services, List<ProcessRow> Processes,
-    string ClientText = "", IReadOnlyList<string>? ClientWarnings = null);
+    string ClientText = "", IReadOnlyList<string>? ClientWarnings = null,
+    string Processor = "Unknown", string Memory = "Unknown");
 
 /// <summary>Membaca kondisi mesin untuk Dashboard. Hanya membaca; tidak mengubah apa pun.</summary>
 public sealed class DashboardReader
@@ -78,7 +79,8 @@ public sealed class DashboardReader
             lastText,
             services, processes,
             _machine is null ? "" : _machine.Client.Length > 0 ? _machine.Client : "none",
-            ClientWarnings(profile, records));
+            ClientWarnings(profile, records),
+            os.Processor, os.Memory);
     }
 
     // ADR-006 §5: build terakhir yang di-deploy per component harus sesuai Client mesin saat ini

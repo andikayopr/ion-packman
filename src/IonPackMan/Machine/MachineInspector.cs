@@ -1,12 +1,15 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.ServiceProcess;
 using Microsoft.Win32;
 
 namespace IonPackMan.Machine;
 
-public sealed record MachineSnapshot(string MachineName, string WindowsVersion);
+/// <param name="Processor">Nama CPU dan jumlah logical processor; "Unknown" bila tidak terbaca.</param>
+/// <param name="Memory">RAM total dan yang masih kosong; "Unknown" bila tidak terbaca.</param>
+public sealed record MachineSnapshot(string MachineName, string WindowsVersion, string Processor = "Unknown", string Memory = "Unknown");
 
 /// <param name="Status">Running, Stopped, Paused, dst.; "Unknown" bila tidak terbaca.</param>
 /// <param name="StartType">Automatic, Manual, Disabled; "Unknown" bila tidak terbaca.</param>
@@ -21,7 +24,62 @@ public sealed record ProcessInfo(string Name, int Pid, long MemoryBytes, string 
 /// </summary>
 public sealed class MachineInspector
 {
-    public MachineSnapshot Inspect() => new(Environment.MachineName, ReadWindowsVersion());
+    public MachineSnapshot Inspect() => new(Environment.MachineName, ReadWindowsVersion(), ReadProcessor(), ReadMemory());
+
+    /// <summary>"Intel(R) Core(TM) i7-1185G7 @ 3.00GHz · 8 logical processors".</summary>
+    private static string ReadProcessor()
+    {
+        string name = "";
+        try
+        {
+            using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            using var key = hklm.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0");
+            name = (key?.GetValue("ProcessorNameString") as string ?? "").Trim();
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+        }
+        return FormatProcessor(name, Environment.ProcessorCount);
+    }
+
+    public static string FormatProcessor(string name, int logicalProcessors)
+    {
+        string cores = $"{logicalProcessors} logical processors";
+        return name.Length == 0 ? (logicalProcessors > 0 ? cores : "Unknown") : $"{CollapseSpaces(name)} · {cores}";
+    }
+
+    private static string CollapseSpaces(string text) => string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MemoryStatus
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhys;
+        public ulong AvailPhys;
+        public ulong TotalPageFile;
+        public ulong AvailPageFile;
+        public ulong TotalVirtual;
+        public ulong AvailVirtual;
+        public ulong AvailExtendedVirtual;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MemoryStatus status);
+
+    private static string ReadMemory()
+    {
+        var status = new MemoryStatus { Length = (uint)Marshal.SizeOf<MemoryStatus>() };
+        return GlobalMemoryStatusEx(ref status) ? FormatMemory(status.TotalPhys, status.AvailPhys) : "Unknown";
+    }
+
+    /// <summary>"16.0 GB total · 7.2 GB free".</summary>
+    public static string FormatMemory(ulong totalBytes, ulong freeBytes)
+    {
+        const double Gb = 1024.0 * 1024 * 1024;
+        return totalBytes == 0 ? "Unknown" : $"{totalBytes / Gb:0.0} GB total · {freeBytes / Gb:0.0} GB free";
+    }
 
     /// <summary>Versi Windows seperti yang ditampilkan winver: "Windows 11 Enterprise · Version 24H2 (OS Build 26100.2605)".</summary>
     private static string ReadWindowsVersion()
