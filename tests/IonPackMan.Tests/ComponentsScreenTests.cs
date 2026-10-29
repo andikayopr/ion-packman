@@ -30,7 +30,6 @@ public class ComponentsScreenTests : IDisposable
             mdd-service=MDD Service
             """);
         _store = new ComponentStore(_dir);
-        Assert.Empty(_store.Save(Rel("wind", "WIND", "2.0.0", @"D:\APCONTAINER\WIND", "WIND")));
         Assert.Empty(_store.Save(Rel("wind", "WIND", "2.1.0", @"D:\APCONTAINER\WIND", "WIND")));
         Assert.Empty(_store.Save(Rel("qraptor", "QRAPTOR", "1.3.1", @"D:\APCONTAINER\QRAPTOR", "")));
         Assert.Empty(_store.Save(Rel("ion-middleware", "ION Middleware", "1.8.2", @"D:\ION\Middleware", "")));
@@ -90,7 +89,7 @@ public class ComponentsScreenTests : IDisposable
             Assert.Equal(4, grid.Items.Count);
             Assert.Equal("Page 1 of 2 · 5 components", Find<TextBlock>(s, "PageText").Text);
             Assert.Equal("ION Middleware (ion-middleware) | 1.8.2 | Not imported", Row(s, 0));
-            Assert.Equal("WIND (wind) | 2.1.0, 2.0.0 | wind-build · 12 files", Row(s, 1));
+            Assert.Equal("WIND (wind) | 2.1.0 | wind-build · 12 files", Row(s, 1));
             Assert.Equal("Non-NDC Parser (non-ndc-parser) | None | Not imported", Row(s, 3));
             Assert.False(Find<Button>(s, "PrevButton").IsEnabled);
 
@@ -157,19 +156,22 @@ public class ComponentsScreenTests : IDisposable
     }
 
     [Fact]
-    public void LoadVersion_LoadsTypedVersion_AndReportsMissingOne()
+    public void ChoosingAComponent_LoadsItsOnlyRelease_AndSavingAnotherVersionReplacesIt()
     {
         WpfHost.Run(() =>
         {
             var s = NewScreen();
-            Choose(s, "wind");
-            Type(Find<TextBox>(s, "VersionBox"), " 2.0.0 ");
-            Click(Find<Button>(s, "LoadButton"));
-            Assert.Equal("2.0.0", Find<TextBox>(s, "VersionBox").Text);
+            var box = Find<ComboBox>(s, "ComponentBox");
+            box.SelectedItem = box.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == "wind");   // dari dropdown, bukan OpenComponent
+            Assert.Equal("2.1.0", Find<TextBox>(s, "VersionBox").Text);
+            Assert.Equal("Saved version: 2.1.0.", Find<TextBlock>(s, "SavedVersionsText").Text);
 
-            Type(Find<TextBox>(s, "VersionBox"), "9.9.9");
-            Click(Find<Button>(s, "LoadButton"));
-            Assert.Equal(StatusKind.Error, Find<Notice>(s, "ReleaseNotice").Kind);
+            Type(Find<TextBox>(s, "VersionBox"), "2.2.0");
+            Assert.Contains("Saving 2.2.0 replaces it", Find<TextBlock>(s, "SavedVersionsText").Text);
+            Click(Find<Button>(s, "SaveButton"));
+
+            Assert.Equal(["2.2.0"], _store.ListVersions("wind"));
+            Assert.Equal("WIND (wind) | 2.2.0 | Not imported", Row(s, 1));
         });
     }
 

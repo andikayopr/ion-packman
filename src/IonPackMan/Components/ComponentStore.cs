@@ -8,7 +8,7 @@ public sealed record CatalogEntry(string Id, string DisplayName);
 
 /// <summary>
 /// Membaca dan menyimpan definisi component di folder rilis (PRD R3–R4).
-/// Menyimpan versi baru tidak pernah menyentuh file versi lain.
+/// Satu component = satu release: menyimpan versi baru menggantikan release lama component itu.
 /// </summary>
 public sealed class ComponentStore
 {
@@ -38,7 +38,7 @@ public sealed class ComponentStore
         return (entries, []);
     }
 
-    /// <summary>Versi yang sudah disimpan untuk satu component, terbaru dulu.</summary>
+    /// <summary>Versi yang tersimpan untuk satu component, terbaru dulu. Normalnya satu; lebih dari satu hanya bila folder rilis diubah manual.</summary>
     public List<string> ListVersions(string componentId)
     {
         string dir = Path.Combine(Paths.ComponentsDir(_releaseDir), componentId);
@@ -71,7 +71,10 @@ public sealed class ComponentStore
         return (release, []);
     }
 
-    /// <summary>Validasi lalu simpan (menimpa hanya release dengan id@versi yang sama). Mengembalikan masalah; kosong = tersimpan.</summary>
+    /// <summary>
+    /// Validasi lalu simpan. Satu component = satu release: file release versi lain milik component yang sama dihapus
+    /// SETELAH file baru tertulis (gagal menulis tidak menghilangkan release lama). Mengembalikan masalah; kosong = tersimpan.
+    /// </summary>
     public List<string> Save(ComponentRelease release, AllowList? allowList = null)
     {
         var problems = release.Validate(allowList);
@@ -81,7 +84,6 @@ public sealed class ComponentStore
         try
         {
             release.ToIni().Save(Paths.ComponentIni(_releaseDir, release.Id, release.ReleaseVersion));
-            return [];
         }
         catch (ArgumentException ex)
         {
@@ -91,6 +93,20 @@ public sealed class ComponentStore
         {
             return [$"Cannot save {release.Id}@{release.ReleaseVersion}: {ex.Message}"];
         }
+
+        var removeProblems = new List<string>();
+        foreach (string other in ListVersions(release.Id).Where(v => v != release.ReleaseVersion))
+        {
+            try
+            {
+                File.Delete(Paths.ComponentIni(_releaseDir, release.Id, other));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                removeProblems.Add($"{release.Id}@{release.ReleaseVersion} was saved, but the older release {other} could not be removed: {ex.Message}");
+            }
+        }
+        return removeProblems;
     }
 
     /// <summary>Import file INI dari luar: ditolak bila Id bukan component yang sedang dipilih (R4), lalu disimpan.</summary>

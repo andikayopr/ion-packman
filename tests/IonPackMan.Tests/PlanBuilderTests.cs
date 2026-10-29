@@ -173,10 +173,10 @@ public class PlanBuilderTests
         // Disimpan tanpa allow-list (seolah file component diedit manual), lalu PlanBuilder harus menolaknya.
         Assert.Empty(env.Components.Save(new Components.ComponentRelease
         {
-            Id = "wind", ReleaseVersion = "3.0.0", TargetDirectory = @"C:\Windows\System32", ServiceName = "WIND",
+            Id = "wind", ReleaseVersion = "2.1.0", TargetDirectory = @"C:\Windows\System32", ServiceName = "WIND",
         }));
 
-        var (plan, errors) = env.Planner.Build(TestDeployEnvironment.All("wind", "3.0.0"));
+        var (plan, errors) = env.Planner.Build(TestDeployEnvironment.All("wind", "2.1.0"));
 
         Assert.Null(plan);
         Assert.Contains("not inside an allowed base directory", Joined(errors));

@@ -48,15 +48,27 @@ public class ComponentStoreTests : IDisposable
     }
 
     [Fact]
-    public void Save_NewVersion_DoesNotTouchOtherVersions()
+    public void Save_NewVersion_ReplacesTheOldRelease_OfThatComponentOnly()
     {
         _store.Save(Wind("2.1.0"));
-        string before = File.ReadAllText(Paths.ComponentIni(_dir, "wind", "2.1.0"));
+        _store.Save(Wind("2.1.0") with { Id = "ion-middleware", TargetDirectory = @"D:\APCONTAINER\MW", ServiceName = "" });
 
-        _store.Save(Wind("2.2.0") with { TargetDirectory = @"D:\APCONTAINER\WIND2" });
+        Assert.Empty(_store.Save(Wind("2.2.0") with { TargetDirectory = @"D:\APCONTAINER\WIND2" }));
 
-        Assert.Equal(before, File.ReadAllText(Paths.ComponentIni(_dir, "wind", "2.1.0")));
+        Assert.Equal(["2.2.0"], _store.ListVersions("wind"));
+        Assert.False(File.Exists(Paths.ComponentIni(_dir, "wind", "2.1.0")));
         Assert.Equal(@"D:\APCONTAINER\WIND2", _store.Load("wind", "2.2.0").Release!.TargetDirectory);
+        Assert.Equal(["2.1.0"], _store.ListVersions("ion-middleware"));   // component lain tidak tersentuh
+    }
+
+    [Fact]
+    public void Save_Invalid_KeepsTheOldRelease()
+    {
+        _store.Save(Wind("2.1.0"));
+
+        Assert.NotEmpty(_store.Save(Wind("2.2.0") with { TargetDirectory = "" }));
+
+        Assert.Equal(["2.1.0"], _store.ListVersions("wind"));
     }
 
     [Fact]
@@ -206,8 +218,9 @@ public class ComponentStoreTests : IDisposable
     [Fact]
     public void ListVersions_NewestFirst_NumericAware_IgnoresOtherFiles()
     {
+        // Store menyimpan satu release per component; beberapa versi hanya ada bila folder rilis diubah manual.
         foreach (var v in new[] { "2.9.0", "2.10.0", "2.1.0", "2.10.0-dev.1", "1.0.0" })
-            _store.Save(Wind(v));
+            Wind(v).ToIni().Save(Paths.ComponentIni(_dir, "wind", v));
         File.WriteAllText(Path.Combine(_dir, "Components", "wind", "notes.txt"), "x");
         File.WriteAllText(Path.Combine(_dir, "Components", "wind", "wind-bad name.ini"), "x");
 

@@ -207,22 +207,20 @@ public partial class ComponentsScreen : UserControl, IScreen
         ImportBuildButton.IsEnabled = isSaved;
         UseInConsoleButton.IsEnabled = isSaved;
         UseInConsoleButton.ToolTip = isSaved ? "Open this release in the Developer Console" : "Save the release first";
-        LoadButton.IsEnabled = release is not null;
-        SavedVersionsText.Text = release is null ? "Choose a component to see its saved versions."
-            : saved.Count > 0 ? "Saved versions: " + string.Join(", ", saved) : "No saved versions yet.";
+        SavedVersionsText.Text = release is null ? "Choose a component to see its saved release."
+            : saved.Count == 0 ? "No release saved yet."
+            : isSaved ? $"Saved version: {saved[0]}."
+            : $"Saved version: {saved[0]}. Saving {release.ReleaseVersion} replaces it.";
 
         string? build = isSaved ? SafeBuildLabel(release!.Id, release.ReleaseVersion) : null;
         BuildText.Text = build is null ? "" : "Imported: " + build;
     }
 
-    private void OnLoadVersion(object sender, RoutedEventArgs e)
+    // Satu component = satu release: memilih component langsung memuat release-nya (atau mengosongkan form bila belum ada).
+    private void OnComponentChosen(object sender, SelectionChangedEventArgs e)
     {
-        if (SelectedId is not { } id)
-        {
-            Show(ReleaseNotice, StatusKind.Error, ["Choose a component first."]);
-            return;
-        }
-        LoadVersion(id, VersionBox.Text.Trim());
+        if (_ready && !_loadingForm && SelectedId is { } id)
+            OpenComponent(id);
     }
 
     private void LoadVersion(string id, string version)

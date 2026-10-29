@@ -54,7 +54,7 @@
                 <DataGrid x:Name="CatalogGrid" Height="196" RowHeight="40">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Component" Binding="{Binding Display}" Width="1.5*"/>
-                        <DataGridTextColumn Header="Saved versions" Binding="{Binding Versions}" Width="1.3*"/>
+                        <DataGridTextColumn Header="Version" Binding="{Binding Versions}" Width="1.3*"/>
                         <DataGridTextColumn Header="Local build" Binding="{Binding LocalBuild}" Width="1.5*"/>
                         <DataGridTemplateColumn Header="Open" Width="78">
                             <DataGridTemplateColumn.CellTemplate>
@@ -100,14 +100,11 @@
 
                         <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,10">
                             <TextBlock Text="Component" Style="{StaticResource FieldLabel}"/>
-                            <ComboBox x:Name="ComponentBox" SelectionChanged="OnFormChanged" AutomationProperties.Name="Component"/>
+                            <ComboBox x:Name="ComponentBox" SelectionChanged="OnComponentChosen" AutomationProperties.Name="Component"/>
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,10">
                             <TextBlock Text="Release version" Style="{StaticResource FieldLabel}"/>
-                            <DockPanel>
-                                <Button x:Name="LoadButton" DockPanel.Dock="Right" Content="Load version" Margin="8,0,0,0" Click="OnLoadVersion"/>
-                                <TextBox x:Name="VersionBox" TextChanged="OnFormChanged" AutomationProperties.Name="Release version"/>
-                            </DockPanel>
+                            <TextBox x:Name="VersionBox" TextChanged="OnFormChanged" AutomationProperties.Name="Release version"/>
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,10">
                             <TextBlock Text="Build reference" Style="{StaticResource FieldLabel}"/>

@@ -327,21 +327,6 @@ public class DevConsoleScreenTests
         });
     }
 
-    [Fact]
-    public void ChangingBuild_ClearsThePreview()
-    {
-        using var rig = WpfHost.Run(() => DevConsoleTestRig.Create());
-        WpfHost.Run(() =>
-        {
-            rig.AddSecondBuild();
-            rig.Screen.Refresh();
-            Previewed(rig);
-            Assert.Equal(2, rig.Build.Items.Count);
-            rig.Build.SelectedValue = rig.Build.SelectedValue as string == "2.2.0" ? "2.1.0" : "2.2.0";
-            ExpectPreviewCleared(rig, "changing the build");
-        });
-    }
-
     [Theory]
     [InlineData("DeployBox")]
     [InlineData("ConfigBox")]
