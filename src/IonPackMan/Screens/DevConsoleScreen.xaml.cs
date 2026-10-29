@@ -39,8 +39,9 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     private readonly Deployer _deployer;
     private readonly BackupStore _backups;
     private readonly ProfileDetector? _detector;
+    private readonly ExecutionLock _gate;
 
-    private bool _updating = true;          // true selama kontrol diisi dari kode (bukan perubahan oleh pengguna)
+    private bool _updating = true;         // true selama kontrol diisi dari kode (bukan perubahan oleh pengguna)
     private bool _locked;
     private bool _recoveryNeeded;
     private DeploymentPlan? _plan;
@@ -54,8 +55,9 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     public event Action<string>? Message;
 
     public DevConsoleScreen(MachineConfig machine, ProfileStore profiles, ComponentStore components, BuildImporter builds,
-        PlanBuilder planner, Deployer deployer, BackupStore backups, ProfileDetector? detector)
+        PlanBuilder planner, Deployer deployer, BackupStore backups, ProfileDetector? detector, ExecutionLock? gate = null)
     {
+        _gate = gate ?? new ExecutionLock();
         _machine = machine;
         _profiles = profiles;
         _components = components;
@@ -99,6 +101,9 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
             if (!_machine.IsDevelopment)
                 Lock("Only available on Development machines",
                     $"This machine's Environment is '{_machine.Environment}'. Deployments can only run on Development machines.", null);
+            else if (_gate.IsHeld)
+                Lock("An execution is running",
+                    "A profile switch is changing this machine right now. Open this screen again after it finishes.", null);
             else if (pending.Count > 0)
                 Lock("Recovery needed", null,
                     "A previous execution did not finish and left a backup that must be restored first: " + string.Join("; ", pending) +
@@ -609,6 +614,13 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     {
         if (_plan is null || _locked || _recoveryNeeded || IsBusy)
             return null;
+        if (!_gate.TryEnter())
+        {
+            _plan = null;
+            _errors = ["Another execution (a profile switch) is running. Wait until it finishes, then preview again."];
+            ShowPreviewState();
+            return null;
+        }
 
         var plan = _plan;
         IsBusy = true;
@@ -626,6 +638,7 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
             result = new DeploymentResult(HistoryOutcome.Rejected, plan.ExecId, [$"Unexpected error: {ex.Message}"], [], "", []);
         }
 
+        _gate.Exit();
         IsBusy = false;
         FormPanel.IsEnabled = true;
         _plan = null;       // satu plan, satu eksekusi: untuk menjalankan lagi, Preview ulang

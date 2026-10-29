@@ -10,7 +10,8 @@ namespace IonPackMan.Screens;
 /// <summary>
 /// Dialog pindah Profile (dibuka dari layar Profiles): menyusun rencana untuk seluruh Profile saat dibuka, menampilkannya,
 /// lalu menjalankannya setelah pengguna menekan Switch. Aturannya ada di <see cref="ProfileSwitcher"/>; dialog hanya
-/// menampilkan dan mengunci alur. Tidak bisa ditutup selama berjalan.
+/// menampilkan dan mengunci alur. Tidak modal (dibuka dengan Show): jendela utama tetap bisa dipakai, mis. membuka Dashboard,
+/// selama switch berjalan. Tidak bisa ditutup selama berjalan.
 /// </summary>
 public partial class SwitchProfileDialog : Window
 {
@@ -27,6 +28,9 @@ public partial class SwitchProfileDialog : Window
     }
 
     public string ProfileId { get; }
+
+    /// <summary>Dipanggil setelah eksekusi selesai (apa pun hasilnya), dari thread UI. Dialog tidak modal: pengguna bisa sedang di layar lain.</summary>
+    public event Action<DeploymentResult>? Completed;
 
     /// <summary>Rencana yang valid; null bila ditolak (lihat <see cref="Errors"/>).</summary>
     public SwitchPlan? Plan => _plan;
@@ -134,6 +138,7 @@ public partial class SwitchProfileDialog : Window
         Result = result;
         ShowResult(result);
         UpdateButtons();
+        Completed?.Invoke(result);
         return result;
     }
 

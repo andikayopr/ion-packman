@@ -17,7 +17,7 @@ namespace IonPackMan.Screens;
 /// Layar Profiles (T12): katalog profile + definisi profile (Components, Registry &amp; INI, INI preview).
 /// Hanya tampilan: aturan ada di ProfileValidator, ConfigResolver dan ProfileStore.
 /// </summary>
-public partial class ProfilesScreen : UserControl, IScreen
+public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen
 {
     private const int PageSize = 4;
 
@@ -201,22 +201,36 @@ public partial class ProfilesScreen : UserControl, IScreen
             SwitchTo(id);
     }
 
+    /// <summary>True selama switch berjalan; MainWindow menolak ditutup selama itu.</summary>
+    public bool IsBusy => _dialog?.IsRunning == true;
+
+    private SwitchProfileDialog? _dialog;
+
     /// <summary>
-    /// Membuka dialog pindah Profile (preview, lalu Switch). Hanya di mesin Development: PlanBuilder/Guards menolak sisanya dengan
-    /// alasan yang tampil di dialog. Null bila tombol tidak tersedia (machine.ini atau allowlist.ini tidak valid).
+    /// Membuka dialog pindah Profile (preview, lalu Switch) TANPA memblokir jendela utama: pengguna bisa membuka menu lain
+    /// selama switch berjalan; toast memberi tahu saat selesai. Hanya satu dialog pada satu waktu. Hanya di mesin Development:
+    /// PlanBuilder/Guards menolak sisanya dengan alasan yang tampil di dialog. Null bila tombol tidak tersedia
+    /// (machine.ini atau allowlist.ini tidak valid).
     /// </summary>
     public SwitchProfileDialog? SwitchTo(string profileId)
     {
         if (_switcher is null)
             return null;
+        if (_dialog is { } open)
+        {
+            open.Activate();   // sudah ada dialog (mungkin sedang berjalan): tampilkan itu, jangan buka yang kedua
+            return open;
+        }
 
         var dialog = new SwitchProfileDialog(_switcher, profileId, _machineName);
         if (Window.GetWindow(this) is { } owner)
             dialog.Owner = owner;
-        dialog.ShowDialog();
-
-        if (dialog.Switched)
-            Message?.Invoke($"Switched to profile '{profileId}'.");
+        dialog.Completed += result => Message?.Invoke(dialog.Switched ? $"Switched to profile '{profileId}'."
+            : result.Succeeded ? $"Components of '{profileId}' were deployed, but the profile is not active. See the switch window."
+            : $"Switch to '{profileId}' did not complete. See the switch window.");
+        dialog.Closed += (_, _) => _dialog = null;
+        _dialog = dialog;
+        dialog.Show();
         return dialog;
     }
 

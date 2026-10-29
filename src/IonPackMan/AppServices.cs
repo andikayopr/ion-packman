@@ -35,6 +35,8 @@ public sealed class AppServices
     public PlanBuilder? Planner { get; private init; }
     public Deployer? Deployer { get; private init; }
     public ProfileSwitcher? Switcher { get; private init; }
+    /// <summary>Satu eksekusi pada satu waktu: dipakai Developer Console dan pindah Profile.</summary>
+    public ExecutionLock Gate { get; private init; } = new();
     public ProfileDetector? Detector { get; private init; }
     public RecoveryService? Recovery { get; private init; }
 
@@ -66,8 +68,9 @@ public sealed class AppServices
             : new PlanBuilder(machine, allowList, components, profiles, validator, builds, registry, serviceControl, processControl, guards);
         Deployer? deployer = machine is null || guards is null || backups is null || history is null ? null
             : new Deployer(machine, guards, backups, serviceControl, processControl, registry, history);
+        var gate = new ExecutionLock();
         ProfileSwitcher? switcher = machine is null || allowList is null || profiles is null || validator is null || detector is null || planner is null || deployer is null ? null
-            : new ProfileSwitcher(machine, allowList, profiles, validator, components, detector, serviceControl, planner, deployer);
+            : new ProfileSwitcher(machine, allowList, profiles, validator, components, detector, serviceControl, planner, deployer, gate);
 
         return new AppServices
         {
@@ -89,6 +92,7 @@ public sealed class AppServices
             Planner = planner,
             Deployer = deployer,
             Switcher = switcher,
+            Gate = gate,
             Dashboard = new DashboardReader(machine, machineErrors, inspector, detector, profiles, validator, components, history),
         };
     }

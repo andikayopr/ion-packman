@@ -73,6 +73,48 @@ public class SwitchProfileDialogTests
     }
 
     [Fact]
+    public void DevConsole_IsLocked_WhileAProfileSwitchRuns()
+    {
+        var gate = new IonPackMan.Deployment.ExecutionLock();
+        using var rig = WpfHost.Run(() => DevConsoleTestRig.Create(gate: gate));
+        WpfHost.Run(() => Assert.False(rig.Screen.IsLocked));
+
+        Assert.True(gate.TryEnter());   // switch sedang berjalan
+        WpfHost.Run(() =>
+        {
+            rig.Screen.Refresh();
+            Assert.True(rig.Screen.IsLocked);
+        });
+
+        gate.Exit();
+        WpfHost.Run(() =>
+        {
+            rig.Screen.Refresh();
+            Assert.False(rig.Screen.IsLocked);
+        });
+    }
+
+    [Fact]
+    public void DevConsole_Execute_IsRefused_WhenASwitchStartedAfterThePreview()
+    {
+        var gate = new IonPackMan.Deployment.ExecutionLock();
+        using var rig = WpfHost.Run(() => DevConsoleTestRig.Create(gate: gate));
+        WpfHost.Run(() =>
+        {
+            rig.SelectWind();
+            Assert.True(rig.Screen.PreviewPlan());
+        });
+
+        Assert.True(gate.TryEnter());
+        var (result, _, _) = rig.Execute();
+
+        Assert.Null(result);
+        Assert.Equal("old-exe", File.ReadAllText(Path.Combine(rig.Env.Target, "WIND.exe")));
+        WpfHost.Run(() => Assert.Contains(rig.ErrorLines(), e => e.Contains("profile switch")));
+        Assert.True(gate.IsHeld);   // lock milik switch tidak dilepas oleh yang ditolak
+    }
+
+    [Fact]
     public void DevConsole_OffersEveryProfile_WhenTheActiveOneIsUnknown()
     {
         using var rig = WpfHost.Run(() => DevConsoleTestRig.Create(detected: false));

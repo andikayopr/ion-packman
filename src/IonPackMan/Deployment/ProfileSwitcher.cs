@@ -32,12 +32,14 @@ public sealed class ProfileSwitcher
     private readonly IServiceControl _services;
     private readonly PlanBuilder _planner;
     private readonly Deployer _deployer;
+    private readonly ExecutionLock _gate;
     private readonly TimeSpan _serviceTimeout;
 
     public ProfileSwitcher(MachineConfig machine, AllowList allowList, ProfileStore profiles, ProfileValidator validator,
         ComponentStore components, ProfileDetector detector, IServiceControl services, PlanBuilder planner, Deployer deployer,
-        TimeSpan? serviceTimeout = null)
+        ExecutionLock gate, TimeSpan? serviceTimeout = null)
     {
+        _gate = gate;
         _machine = machine;
         _allowList = allowList;
         _profiles = profiles;
@@ -131,6 +133,20 @@ public sealed class ProfileSwitcher
     /// dengan <see cref="DeploymentResult.Warnings"/> yang menyebut Profile belum aktif.
     /// </summary>
     public DeploymentResult Run(SwitchPlan plan, IProgress<DeployStep>? progress = null)
+    {
+        if (!_gate.TryEnter())
+            return new DeploymentResult(HistoryOutcome.Rejected, "", ["Another execution is already running. Wait until it finishes."], [], "", []);
+        try
+        {
+            return RunLocked(plan, progress);
+        }
+        finally
+        {
+            _gate.Exit();
+        }
+    }
+
+    private DeploymentResult RunLocked(SwitchPlan plan, IProgress<DeployStep>? progress)
     {
         DeploymentResult? last = null;
         for (int i = 0; i < plan.Steps.Count; i++)

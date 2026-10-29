@@ -26,14 +26,14 @@ internal sealed class DevConsoleTestRig : IDisposable
     public List<string> Messages { get; } = [];
 
     /// <param name="detected">false = detektor tidak menemukan folder/service, jadi hasilnya Unknown.</param>
-    public static DevConsoleTestRig Create(TestDeployEnvironment? env = null, bool detected = true)
+    public static DevConsoleTestRig Create(TestDeployEnvironment? env = null, bool detected = true, ExecutionLock? gate = null)
     {
         env ??= new TestDeployEnvironment();
         var backups = new BackupStore(env.Cache, env.Registry, env.Services, env.Allow);
         var history = new HistoryStore(env.Cache);
         var deployer = new Deployer(env.Machine, env.Guards, backups, env.Services, env.Processes, env.Registry, history, TimeSpan.FromSeconds(1));
         var detector = new ProfileDetector(env.Components, env.Profiles, _ => detected, _ => detected);
-        var screen = new DevConsoleScreen(env.Machine, env.Profiles, env.Components, env.Builds, env.Planner, deployer, backups, detector);
+        var screen = new DevConsoleScreen(env.Machine, env.Profiles, env.Components, env.Builds, env.Planner, deployer, backups, detector, gate);
         var host = new Window { Content = screen };   // style tema hanya berlaku bila elemen berada di Window
         screen.Measure(new Size(808, 3000));
 

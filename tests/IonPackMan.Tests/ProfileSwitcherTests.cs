@@ -7,14 +7,14 @@ namespace IonPackMan.Tests;
 
 public class ProfileSwitcherTests
 {
-    internal static ProfileSwitcher SwitcherFor(TestDeployEnvironment env)
+    internal static ProfileSwitcher SwitcherFor(TestDeployEnvironment env, ExecutionLock? gate = null)
     {
         var backups = new BackupStore(env.Cache, env.Registry, env.Services, env.Allow);
         var deployer = new Deployer(env.Machine, env.Guards, backups, env.Services, env.Processes, env.Registry,
             new IonPackMan.History.HistoryStore(env.Cache), TimeSpan.FromSeconds(1));
         var detector = new ProfileDetector(env.Components, env.Profiles, _ => true, _ => true);
         return new ProfileSwitcher(env.Machine, env.Allow, env.Profiles, env.Validator, env.Components, detector, env.Services,
-            env.Planner, deployer, TimeSpan.FromSeconds(1));
+            env.Planner, deployer, gate ?? new ExecutionLock(), TimeSpan.FromSeconds(1));
     }
 
     // TestDeployEnvironment: TESTP = ion-middleware (tanpa service, folder Mw belum ada, belum ada build) + wind (ada, service WIND Running).
@@ -60,6 +60,26 @@ public class ProfileSwitcherTests
         Assert.Contains("Start:WIND", env.Services.Calls);
         Assert.Equal("TESTP", env.Machine.Profile);
         Assert.Contains("Profile=TESTP", MachineIni(env));
+    }
+
+    [Fact]
+    public void Run_WhileAnotherExecutionHoldsTheLock_IsRejectedWithoutTouchingTheMachine_AndReleasesTheLockAfterwards()
+    {
+        using var env = new TestDeployEnvironment();
+        ImportMiddlewareBuild(env);
+        var gate = new ExecutionLock();
+        var switcher = SwitcherFor(env, gate);
+        var plan = switcher.Build("TESTP").Plan!;
+
+        Assert.True(gate.TryEnter());
+        var rejected = switcher.Run(plan);
+        Assert.Equal(IonPackMan.History.HistoryOutcome.Rejected, rejected.Outcome);
+        Assert.Contains(rejected.Errors, e => e.Contains("already running"));
+        Assert.Equal("old-exe", File.ReadAllText(Path.Combine(env.Target, "WIND.exe")));
+        gate.Exit();
+
+        Assert.True(switcher.Run(plan).Succeeded);
+        Assert.False(gate.IsHeld);   // dilepas setelah selesai
     }
 
     [Fact]
