@@ -106,6 +106,8 @@ public sealed class DashboardReader
         var services = new List<ServiceRow>();
         var processes = new List<ProcessRow>();
         var listed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Enumerasi proses mahal: sekali saja untuk semua component dan folder program.
+        var allProcesses = _inspector.ListProcesses();
 
         foreach (var pc in profile?.Components ?? [])
         {
@@ -122,7 +124,7 @@ public sealed class DashboardReader
                     : ToRow(info, pc.Id));
             }
 
-            var running = _inspector.GetProcessesUnder(release.TargetDirectory);
+            var running = MachineInspector.ProcessesUnder(allProcesses, release.TargetDirectory);
             if (running.Count == 0)
                 processes.Add(new ProcessRow("—", pc.Id, "—", "Not detected", StatusKind.Neutral, "—", release.TargetDirectory));
             processes.AddRange(running.Select(p => new ProcessRow(p.Name, pc.Id, p.Pid.ToString(), "Running", StatusKind.Success,
@@ -132,7 +134,7 @@ public sealed class DashboardReader
         if (_machine is not null)
         {
             AddMachineServices(_machine, services, listed);
-            AddMachinePrograms(_machine, processes);
+            AddMachinePrograms(_machine, processes, allProcesses);
         }
 
         // R2: service lain yang berjalan dari base directory ION juga ditampilkan.
@@ -158,11 +160,11 @@ public sealed class DashboardReader
     }
 
     // [PROGRAM] di machine.ini: label = Component, nilai = folder program. Proses yang berjalan dari folder itu ditampilkan.
-    private void AddMachinePrograms(MachineConfig machine, List<ProcessRow> processes)
+    private static void AddMachinePrograms(MachineConfig machine, List<ProcessRow> processes, IReadOnlyList<ProcessInfo> allProcesses)
     {
         foreach (var (label, folder) in machine.Programs)
         {
-            var running = _inspector.GetProcessesUnder(folder);
+            var running = MachineInspector.ProcessesUnder(allProcesses, folder);
             if (running.Count == 0)
                 processes.Add(new ProcessRow("—", label, "—",
                     Directory.Exists(folder) ? "Not detected" : "Folder not found", StatusKind.Neutral, "—", folder));

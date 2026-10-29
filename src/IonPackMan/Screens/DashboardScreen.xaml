@@ -17,7 +17,11 @@
 
     <StackPanel>
         <DockPanel Margin="0,0,0,14">
-            <Button x:Name="RefreshButton" DockPanel.Dock="Right" Content="↻ Refresh" VerticalAlignment="Top" Click="OnRefreshClick"/>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                <TextBlock x:Name="LoadingText" Text="Reading machine status…" Style="{StaticResource MutedText}" VerticalAlignment="Center"
+                           Margin="0,0,10,0" Visibility="Collapsed"/>
+                <Button x:Name="RefreshButton" Content="↻ Refresh" Click="OnRefreshClick"/>
+            </StackPanel>
             <StackPanel>
                 <TextBlock Text="System Dashboard" Style="{StaticResource PageTitle}"/>
                 <TextBlock Text="Current machine status and ION runtime components." Style="{StaticResource PageSubtitle}"/>

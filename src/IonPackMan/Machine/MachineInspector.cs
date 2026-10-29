@@ -98,21 +98,25 @@ public sealed class MachineInspector
         {
             using (sc)
             {
-                var info = Describe(sc);
-                if (info.ExecutablePath.Length > 0 && dirs.Any(d => IsUnder(info.ExecutablePath, d)))
-                    result.Add(info);
+                // Path (Registry, murah) dicek dulu; status/start type/nama tampilan (panggilan SCM, mahal) hanya untuk yang cocok.
+                string path = ReadImagePath(sc.ServiceName);
+                if (path.Length > 0 && dirs.Any(d => IsUnder(path, d)))
+                    result.Add(Describe(sc, path));
             }
         }
         return result.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     /// <summary>Proses yang berjalan dari direktori itu (termasuk subfoldernya). Proses yang path-nya tidak bisa dibaca dilewati.</summary>
-    public List<ProcessInfo> GetProcessesUnder(string directory)
+    public List<ProcessInfo> GetProcessesUnder(string directory) => ProcessesUnder(ListProcesses(), directory);
+
+    /// <summary>
+    /// Semua proses yang path exe-nya terbaca. Mahal (sekitar satu detik di mesin dengan ratusan proses: tiap proses dibuka),
+    /// jadi pemanggil yang butuh banyak folder membacanya SEKALI lalu memakai <see cref="ProcessesUnder"/> per folder.
+    /// </summary>
+    public List<ProcessInfo> ListProcesses()
     {
         var result = new List<ProcessInfo>();
-        if (string.IsNullOrWhiteSpace(directory))
-            return result;
-
         foreach (var p in Process.GetProcesses())
         {
             using (p)
@@ -120,7 +124,7 @@ public sealed class MachineInspector
                 try
                 {
                     string? path = p.MainModule?.FileName;
-                    if (path is not null && IsUnder(path, directory))
+                    if (path is not null)
                         result.Add(new ProcessInfo(p.ProcessName, p.Id, p.WorkingSet64, path));
                 }
                 catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or NotSupportedException)
@@ -129,14 +133,23 @@ public sealed class MachineInspector
                 }
             }
         }
-        return result.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ThenBy(p => p.Pid).ToList();
+        return result;
     }
 
-    private static ServiceInfo Describe(ServiceController sc)
+    /// <summary>Yang berjalan dari <paramref name="directory"/> (termasuk subfoldernya), urut nama lalu Pid.</summary>
+    public static List<ProcessInfo> ProcessesUnder(IEnumerable<ProcessInfo> processes, string directory) =>
+        string.IsNullOrWhiteSpace(directory)
+            ? []
+            : processes.Where(p => IsUnder(p.ExecutablePath, directory))
+                .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ThenBy(p => p.Pid).ToList();
+
+    private static ServiceInfo Describe(ServiceController sc) => Describe(sc, ReadImagePath(sc.ServiceName));
+
+    private static ServiceInfo Describe(ServiceController sc, string imagePath)
     {
         string status = Safe(() => sc.Status.ToString());
         string startType = Safe(() => sc.StartType.ToString());
-        return new ServiceInfo(sc.ServiceName, Safe(() => sc.DisplayName), status, startType, ReadImagePath(sc.ServiceName));
+        return new ServiceInfo(sc.ServiceName, Safe(() => sc.DisplayName), status, startType, imagePath);
     }
 
     private static string Safe(Func<string> read)

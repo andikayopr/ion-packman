@@ -24,21 +24,53 @@ public partial class DashboardScreen : UserControl, IScreen
         _recovery = recovery;
     }
 
-    /// <summary>Membaca ulang kondisi mesin (saat layar dibuka dan saat Refresh ditekan).</summary>
-    public void Refresh()
+    /// <summary>Membaca ulang kondisi mesin (saat layar dibuka dan saat Refresh ditekan) tanpa memblokir UI.</summary>
+    public void Refresh() => _ = RefreshAsync();
+
+    private Task? _loading;
+    private bool _readAgain;
+
+    /// <summary>
+    /// Pembacaan mesin lambat (enumerasi proses dan service), jadi berjalan di thread latar; data terakhir tetap tampil
+    /// dengan penanda "Reading machine status…". Permintaan yang datang saat pembacaan berjalan digabung: satu pembacaan
+    /// lagi setelah yang berjalan selesai, bukan satu per permintaan. Banner pemulihan (murah) langsung diperbarui.
+    /// </summary>
+    public Task RefreshAsync()
     {
-        var previous = Mouse.OverrideCursor;
-        Mouse.OverrideCursor = Cursors.Wait;
+        ShowRecovery();
+        if (_loading is not null)
+        {
+            _readAgain = true;
+            return _loading;
+        }
+        return _loading = LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        LoadingText.Visibility = Visibility.Visible;
         try
         {
-            _snapshot = _reader.Read();
+            do
+            {
+                _readAgain = false;
+                try
+                {
+                    _snapshot = await Task.Run(_reader.Read);
+                    Show(_snapshot);
+                }
+                catch (Exception ex)
+                {
+                    Message?.Invoke($"Could not read the machine status: {ex.Message}");
+                }
+            }
+            while (_readAgain);
         }
         finally
         {
-            Mouse.OverrideCursor = previous;
+            _loading = null;
+            LoadingText.Visibility = Visibility.Collapsed;
         }
-        Show(_snapshot);
-        ShowRecovery();
     }
 
     /// <summary>Banner merah + tombol Restore bila ada backup yang belum selesai atau tidak terbaca.</summary>
@@ -137,9 +169,9 @@ public partial class DashboardScreen : UserControl, IScreen
 
     private void OnSearchChanged(object sender, TextChangedEventArgs e) => ApplyFilter();
 
-    private void OnRefreshClick(object sender, RoutedEventArgs e)
+    private async void OnRefreshClick(object sender, RoutedEventArgs e)
     {
-        Refresh();
+        await RefreshAsync();
         Message?.Invoke("Machine status refreshed.");
     }
 }

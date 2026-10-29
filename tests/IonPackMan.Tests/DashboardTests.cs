@@ -100,12 +100,15 @@ public class DashboardTests : IDisposable
     {
         string png = Path.Combine(Path.GetTempPath(), "ionpackman-dashboard.png");
 
+        var (screen, host) = WpfHost.Run(() =>
+        {
+            var s = new DashboardScreen(Reader(Machine()));
+            return (s, new Window { Content = s });
+        });
+        WpfHost.Run(() => screen.RefreshAsync()).Wait(TimeSpan.FromSeconds(60));
+
         WpfHost.Run(() =>
         {
-            var screen = new DashboardScreen(Reader(Machine()));
-            var host = new Window { Content = screen };
-            screen.Refresh();
-
             Assert.Equal(Environment.MachineName, ((TextBlock)screen.FindName("MachineName")).Text);   // nama komputer sebenarnya
             Assert.Equal("QRIS TAP", ((TextBlock)screen.FindName("ProfileName")).Text);
             Assert.Equal("Detected", ((StatusPill)screen.FindName("ProfilePill")).Text);
@@ -127,12 +130,16 @@ public class DashboardTests : IDisposable
     [Fact]
     public void Screen_WhenProfileIsUnknown_ExplainsWhy()
     {
+        var screen = WpfHost.Run(() =>
+        {
+            var s = new DashboardScreen(Reader(null, ["machine.ini: file not found."]));
+            _ = new Window { Content = s };
+            return s;
+        });
+        WpfHost.Run(() => screen.RefreshAsync()).Wait(TimeSpan.FromSeconds(60));
+
         WpfHost.Run(() =>
         {
-            var screen = new DashboardScreen(Reader(null, ["machine.ini: file not found."]));
-            _ = new Window { Content = screen };
-            screen.Refresh();
-
             var notice = (Notice)screen.FindName("ProblemNotice");
             Assert.Equal(Visibility.Visible, notice.Visibility);
             Assert.Contains("file not found", ((TextBlock)notice.Content).Text);
@@ -143,16 +150,41 @@ public class DashboardTests : IDisposable
     [Fact]
     public void Screen_Refresh_RaisesAToast()
     {
+        var toast = new TaskCompletionSource<string>();
         WpfHost.Run(() =>
         {
             var screen = new DashboardScreen(Reader(Machine()));
             _ = new Window { Content = screen };
-            string? message = null;
-            screen.Message += m => message = m;
+            screen.Message += m => toast.TrySetResult(m);
 
             ((Button)screen.FindName("RefreshButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-
-            Assert.Equal("Machine status refreshed.", message);
         });
+
+        Assert.True(toast.Task.Wait(TimeSpan.FromSeconds(60)), "no toast");
+        Assert.Equal("Machine status refreshed.", toast.Task.Result);
+    }
+
+    [Fact]
+    public void Screen_Refresh_DoesNotBlock_ShowsLoadingMarker_ThenHidesIt()
+    {
+        var screen = WpfHost.Run(() =>
+        {
+            var s = new DashboardScreen(Reader(Machine()));
+            _ = new Window { Content = s };
+            return s;
+        });
+
+        // Refresh() kembali segera; saat pembacaan berjalan penanda tampil dan layar tetap melayani UI.
+        var task = WpfHost.Run(() =>
+        {
+            var t = screen.RefreshAsync();
+            Assert.False(t.IsCompleted);
+            Assert.Equal(Visibility.Visible, ((FrameworkElement)screen.FindName("LoadingText")).Visibility);
+            Assert.Same(t, screen.RefreshAsync());   // permintaan kedua digabung, bukan pembacaan paralel
+            return t;
+        });
+        Assert.True(task.Wait(TimeSpan.FromSeconds(60)));
+
+        WpfHost.Run(() => Assert.Equal(Visibility.Collapsed, ((FrameworkElement)screen.FindName("LoadingText")).Visibility));
     }
 }

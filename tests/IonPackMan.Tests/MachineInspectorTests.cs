@@ -81,6 +81,24 @@ public class MachineInspectorTests
         Assert.Empty(_inspector.GetProcessesUnder(Path.Combine(Path.GetTempPath(), "no-such-" + Guid.NewGuid().ToString("N"))));
     }
 
+    [Fact]
+    public void ProcessesUnder_FiltersOneSnapshotPerFolder_SortedByNameThenPid()
+    {
+        // Satu hasil ListProcesses dipakai untuk banyak folder: tidak ada enumerasi proses per folder.
+        var all = new[]
+        {
+            new ProcessInfo("wind", 20, 1, @"D:\ION\wind\wind.exe"),
+            new ProcessInfo("agent", 30, 1, @"D:\ION\wind\sub\agent.exe"),
+            new ProcessInfo("wind", 10, 1, @"D:\ION\wind\wind.exe"),
+            new ProcessInfo("windx", 40, 1, @"D:\ION\windx\windx.exe"),
+            new ProcessInfo("other", 50, 1, @"C:\Other\other.exe"),
+        };
+
+        Assert.Equal([30, 10, 20], MachineInspector.ProcessesUnder(all, @"D:\ION\wind").Select(p => p.Pid));   // windx bukan di wind
+        Assert.Equal([40], MachineInspector.ProcessesUnder(all, @"D:\ION\windx").Select(p => p.Pid));
+        Assert.Empty(MachineInspector.ProcessesUnder(all, ""));
+    }
+
     [Theory]
     [InlineData("\"C:\\Program Files\\ION\\svc.exe\" -k run", "C:\\Program Files\\ION\\svc.exe")]
     [InlineData("C:\\Windows\\system32\\svchost.exe -k netsvcs -p", "C:\\Windows\\system32\\svchost.exe")]
