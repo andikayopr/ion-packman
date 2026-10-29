@@ -4,7 +4,6 @@ using System.Windows.Controls;
 using IonPackMan.Components;
 using IonPackMan.Controls;
 using IonPackMan.Machine;
-using Microsoft.Win32;
 
 namespace IonPackMan.Screens;
 
@@ -209,8 +208,6 @@ public partial class ComponentsScreen : UserControl, IScreen
         UseInConsoleButton.IsEnabled = isSaved;
         UseInConsoleButton.ToolTip = isSaved ? "Open this release in the Developer Console" : "Save the release first";
         LoadButton.IsEnabled = release is not null;
-        ExportIniButton.IsEnabled = release is not null;
-        ImportIniButton.IsEnabled = release is not null;
         SavedVersionsText.Text = release is null ? "Choose a component to see its saved versions."
             : saved.Count > 0 ? "Saved versions: " + string.Join(", ", saved) : "No saved versions yet.";
 
@@ -284,13 +281,6 @@ public partial class ComponentsScreen : UserControl, IScreen
 
     // ---------- Import / Export INI ----------
 
-    private void OnImportIni(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Title = "Import component INI", Filter = "INI files (*.ini)|*.ini|All files (*.*)|*.*" };
-        if (dialog.ShowDialog() == true)
-            ImportIni(dialog.FileName);
-    }
-
     /// <summary>Baca file INI, tolak bila Id berbeda dari component terpilih, lalu simpan dan tampilkan.</summary>
     public void ImportIni(string path)
     {
@@ -311,18 +301,6 @@ public partial class ComponentsScreen : UserControl, IScreen
         FillForm(release, id);
         Show(ReleaseNotice, StatusKind.Success, [$"Imported and saved {release.Id}@{release.ReleaseVersion}."]);
         Message?.Invoke("Component release imported.");
-    }
-
-    private void OnExportIni(object sender, RoutedEventArgs e)
-    {
-        var release = BuildRelease();
-        var dialog = new SaveFileDialog
-        {
-            Title = "Export component INI", Filter = "INI files (*.ini)|*.ini",
-            FileName = release is null ? "component.ini" : $"{release.Id}-{release.ReleaseVersion}.ini",
-        };
-        if (dialog.ShowDialog() == true)
-            ExportIni(dialog.FileName);
     }
 
     /// <summary>Tulis isi form ke file (hanya bila valid, supaya file hasil ekspor selalu bisa diimpor lagi).</summary>
