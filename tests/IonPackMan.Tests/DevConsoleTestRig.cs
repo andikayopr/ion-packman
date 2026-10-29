@@ -82,6 +82,17 @@ internal sealed class DevConsoleTestRig : IDisposable
         }));
     }
 
+    /// <summary>Menyimpan release wind@2.2.0 dan mengimpor build-nya, supaya ada dua pilihan build.</summary>
+    public void AddSecondBuild()
+    {
+        Assert.Empty(Env.Components.Save(new IonPackMan.Components.ComponentRelease
+        {
+            Id = "wind", ReleaseVersion = "2.2.0", TargetDirectory = Env.Target, ServiceName = "WIND",
+        }, Env.Allow));
+        var (build, errors) = Env.Builds.Import("wind", "2.2.0", Env.SourceBuild);
+        Assert.True(build is not null, string.Join("; ", errors));
+    }
+
     /// <summary>Menjalankan ExecutePlanAsync dari thread WPF dan menunggu hasilnya (continuation kembali ke thread UI).</summary>
     public (DeploymentResult? Result, List<DeployStep> Steps, List<bool> BusyDuring) Execute()
     {

@@ -54,7 +54,7 @@
                 <DataGrid x:Name="CatalogGrid" Height="196" RowHeight="40">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Component" Binding="{Binding Display}" Width="1.5*"/>
-                        <DataGridTextColumn Header="Version" Binding="{Binding Versions}" Width="1.3*"/>
+                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="1.3*"/>
                         <DataGridTextColumn Header="Local build" Binding="{Binding LocalBuild}" Width="1.5*"/>
                         <DataGridTemplateColumn Header="Open" Width="78">
                             <DataGridTemplateColumn.CellTemplate>
@@ -129,7 +129,8 @@
                 <WrapPanel>
                     <Button x:Name="ImportBuildButton" Content="Import local build…" Margin="0,0,8,8" Click="OnImportBuild"
                             ToolTip="Save this release first, then import its build folder."/>
-                    <Button x:Name="UseInConsoleButton" Content="Use in Developer Console" Margin="0,0,0,8" Click="OnUseInConsole"/>
+                    <Button x:Name="UseInConsoleButton" Content="Use in Developer Console" Margin="0,0,8,8" Click="OnUseInConsole"/>
+                    <Button x:Name="DeleteButton" Content="Delete release" Margin="0,0,0,8" Style="{StaticResource DangerButton}" Click="OnDeleteRelease"/>
                 </WrapPanel>
                 <TextBlock x:Name="BuildText" Style="{StaticResource MutedText}" Margin="0,0,0,8" TextTrimming="CharacterEllipsis"/>
 

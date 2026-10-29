@@ -16,7 +16,7 @@ public partial class ComponentsScreen : UserControl, IScreen
     private const int PageSize = 4;
 
     /// <summary>Satu baris tabel katalog.</summary>
-    private sealed record CatalogRow(string Id, string Display, string Versions, string LocalBuild, bool HasVersions, bool HasBuild);
+    private sealed record CatalogRow(string Id, string Display, string Version, string LocalBuild, bool HasVersions, bool HasBuild);
 
     private readonly ComponentStore _store;
     private readonly AllowList _allowList;
@@ -61,16 +61,10 @@ public partial class ComponentsScreen : UserControl, IScreen
         }
         else
         {
-            // Sisa file dari sebelum aturan satu release: tidak dipakai di mana pun, tapi pengguna harus tahu dan bisa membereskannya.
-            var ignored = _entries.Select(e => (e.Id, Versions: _store.IgnoredVersions(e.Id))).Where(x => x.Versions.Count > 0).ToList();
-            if (ignored.Count == 0)
-                CatalogNotice.Visibility = Visibility.Collapsed;
-            else
-                Show(CatalogNotice, StatusKind.Warning, ignored.Select(x => $"{x.Id}: release file {string.Join(", ", x.Versions)} is ignored because a newer release exists. Save the component to remove it.")
-                    .Prepend("A component can have only one release."));
+            CatalogNotice.Visibility = Visibility.Collapsed;
         }
 
-        _rows = _entries.Select(BuildRow).ToList();
+        _rows = _entries.SelectMany(BuildRows).ToList();
 
         // Isi ulang pilihan Component, pertahankan pilihan lama bila masih ada.
         string? selected = SelectedId;
@@ -87,18 +81,21 @@ public partial class ComponentsScreen : UserControl, IScreen
 
     // ---------- Katalog ----------
 
-    private CatalogRow BuildRow(CatalogEntry entry)
+    // Satu baris per release (component@versi), terbaru dulu. Component tanpa release tetap tampil satu baris "None".
+    private IEnumerable<CatalogRow> BuildRows(CatalogEntry entry)
     {
+        string display = $"{entry.DisplayName} ({entry.Id})";
         var versions = _store.ListVersions(entry.Id);
-        string? build = null;
-        foreach (var v in versions)
+        if (versions.Count == 0)
         {
-            build = SafeBuildLabel(entry.Id, v);
-            if (build is not null) break;
+            yield return new CatalogRow(entry.Id, display, "None", "Not imported", false, false);
+            yield break;
         }
-        return new CatalogRow(entry.Id, $"{entry.DisplayName} ({entry.Id})",
-            versions.Count > 0 ? string.Join(", ", versions) : "None",
-            build ?? "Not imported", versions.Count > 0, build is not null);
+        foreach (string version in versions)
+        {
+            string? build = SafeBuildLabel(entry.Id, version);
+            yield return new CatalogRow(entry.Id, display, version, build ?? "Not imported", true, build is not null);
+        }
     }
 
     private string? SafeBuildLabel(string id, string version)
@@ -114,14 +111,14 @@ public partial class ComponentsScreen : UserControl, IScreen
         string q = SearchBox.Text.Trim();
         int filter = Math.Max(FilterBox.SelectedIndex, 0);
         var filtered = _rows.Where(r =>
-            (q.Length == 0 || r.Display.Contains(q, StringComparison.OrdinalIgnoreCase) || r.Versions.Contains(q, StringComparison.OrdinalIgnoreCase)) &&
+            (q.Length == 0 || r.Display.Contains(q, StringComparison.OrdinalIgnoreCase) || r.Version.Contains(q, StringComparison.OrdinalIgnoreCase)) &&
             filter switch { 1 => r.HasVersions, 2 => r.HasBuild, 3 => !r.HasVersions, _ => true }).ToList();
 
         int pages = Math.Max(1, (filtered.Count + PageSize - 1) / PageSize);
         _page = Math.Clamp(_page, 0, pages - 1);
 
         CatalogGrid.ItemsSource = filtered.Skip(_page * PageSize).Take(PageSize).ToList();
-        PageText.Text = $"Page {_page + 1} of {pages} · {filtered.Count} component{(filtered.Count == 1 ? "" : "s")}";
+        PageText.Text = $"Page {_page + 1} of {pages} · {filtered.Count} release{(filtered.Count == 1 ? "" : "s")}";
         PrevButton.IsEnabled = _page > 0;
         NextButton.IsEnabled = _page < pages - 1;
     }
@@ -134,20 +131,24 @@ public partial class ComponentsScreen : UserControl, IScreen
     private void OnPrevPage(object sender, RoutedEventArgs e) { _page--; ApplyCatalogFilter(false); }
     private void OnNextPage(object sender, RoutedEventArgs e) { _page++; ApplyCatalogFilter(false); }
 
-    private void OnOpenRow(object sender, RoutedEventArgs e) => OpenComponent((string)((FrameworkElement)sender).Tag);
+    private void OnOpenRow(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is CatalogRow row)
+            OpenComponent(row.Id, row.HasVersions ? row.Version : null);
+    }
 
-    /// <summary>Pilih component dan muat versi tersimpan terbaru; bila belum ada, form dikosongkan.</summary>
-    public void OpenComponent(string id)
+    /// <summary>Pilih component dan muat <paramref name="version"/> (null = versi tersimpan terbaru); bila belum ada, form dikosongkan.</summary>
+    public void OpenComponent(string id, string? version = null)
     {
         SelectComponent(id);
-        var latest = _store.ListVersions(id).FirstOrDefault();
-        if (latest is null)
+        version ??= _store.ListVersions(id).FirstOrDefault();
+        if (version is null)
         {
             FillForm(null, id);
             Show(ReleaseNotice, StatusKind.Info, ["No saved release for this component yet. Fill in the form and choose Save Component."]);
             return;
         }
-        LoadVersion(id, latest);
+        LoadVersion(id, version);
     }
 
     // ---------- Form ----------
@@ -213,16 +214,17 @@ public partial class ComponentsScreen : UserControl, IScreen
         ImportBuildButton.IsEnabled = isSaved;
         UseInConsoleButton.IsEnabled = isSaved;
         UseInConsoleButton.ToolTip = isSaved ? "Open this release in the Developer Console" : "Save the release first";
-        SavedVersionsText.Text = release is null ? "Choose a component to see its saved release."
-            : saved.Count == 0 ? "No release saved yet."
-            : isSaved ? $"Saved version: {saved[0]}."
-            : $"Saved version: {saved[0]}. Saving {release.ReleaseVersion} replaces it.";
+        DeleteButton.IsEnabled = isSaved;
+        DeleteButton.ToolTip = isSaved ? "Delete this release. Other versions and imported builds are kept." : "Only a saved release can be deleted";
+        SavedVersionsText.Text = release is null ? "Choose a component to see its saved versions."
+            : saved.Count == 0 ? "No saved versions yet."
+            : "Saved versions: " + string.Join(", ", saved) + (!isSaved && release.ReleaseVersion.Length > 0 ? $". Saving {release.ReleaseVersion} creates a new release." : "");
 
         string? build = isSaved ? SafeBuildLabel(release!.Id, release.ReleaseVersion) : null;
         BuildText.Text = build is null ? "" : "Imported: " + build;
     }
 
-    // Satu component = satu release: memilih component langsung memuat release-nya (atau mengosongkan form bila belum ada).
+    // Memilih component dari dropdown memuat release terbarunya (atau mengosongkan form bila belum ada).
     private void OnComponentChosen(object sender, SelectionChangedEventArgs e)
     {
         if (_ready && !_loadingForm && SelectedId is { } id)
@@ -327,6 +329,36 @@ public partial class ComponentsScreen : UserControl, IScreen
         }
         Show(ReleaseNotice, StatusKind.Success, [$"Exported to {path}."]);
         Message?.Invoke("Component INI exported.");
+    }
+
+    private void OnDeleteRelease(object sender, RoutedEventArgs e)
+    {
+        if (BuildRelease() is not { } release)
+            return;
+        var answer = MessageBox.Show(
+            $"Delete the release {release.Id} {release.ReleaseVersion}?\nOther versions and the imported build stay. A profile that uses this version becomes invalid until you change its version.",
+            "Delete release", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
+        if (answer == MessageBoxResult.OK)
+            DeleteRelease();
+    }
+
+    /// <summary>Menghapus release yang sedang tampil di form (hanya yang sudah tersimpan); konfirmasi ada di handler tombol.</summary>
+    public void DeleteRelease()
+    {
+        var release = BuildRelease();
+        if (release is null) { Show(ReleaseNotice, StatusKind.Error, ["Choose a component first."]); return; }
+
+        var problems = _store.Delete(release.Id, release.ReleaseVersion);
+        if (problems.Count > 0)
+        {
+            Show(ReleaseNotice, StatusKind.Error, problems);
+            return;
+        }
+
+        Refresh();
+        OpenComponent(release.Id);   // tampilkan release terbaru yang tersisa (atau form kosong)
+        Show(ReleaseNotice, StatusKind.Success, [$"Deleted {release.Id}@{release.ReleaseVersion}. Its imported build, if any, stays in the local cache."]);
+        Message?.Invoke("Component release deleted.");
     }
 
     private void OnUseInConsole(object sender, RoutedEventArgs e)

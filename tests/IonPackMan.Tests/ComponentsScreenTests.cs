@@ -30,6 +30,7 @@ public class ComponentsScreenTests : IDisposable
             mdd-service=MDD Service
             """);
         _store = new ComponentStore(_dir);
+        Assert.Empty(_store.Save(Rel("wind", "WIND", "2.0.0", @"D:\APCONTAINER\WIND", "WIND")));
         Assert.Empty(_store.Save(Rel("wind", "WIND", "2.1.0", @"D:\APCONTAINER\WIND", "WIND")));
         Assert.Empty(_store.Save(Rel("qraptor", "QRAPTOR", "1.3.1", @"D:\APCONTAINER\QRAPTOR", "")));
         Assert.Empty(_store.Save(Rel("ion-middleware", "ION Middleware", "1.8.2", @"D:\ION\Middleware", "")));
@@ -72,31 +73,34 @@ public class ComponentsScreenTests : IDisposable
     {
         var grid = Find<DataGrid>(s, "CatalogGrid");
         var item = grid.Items[i]!;
-        return string.Join(" | ", new[] { "Display", "Versions", "LocalBuild" }
+        return string.Join(" | ", new[] { "Display", "Version", "LocalBuild" }
             .Select(p => (string)item.GetType().GetProperty(p)!.GetValue(item)!));
     }
 
     // ---------- Katalog ----------
 
     [Fact]
-    public void Catalog_ShowsFourRowsPerPage_WithVersionsAndLocalBuild()
+    public void Catalog_ShowsOneRowPerRelease_FourPerPage_WithItsOwnLocalBuild()
     {
         WpfHost.Run(() =>
         {
             var s = NewScreen();
             var grid = Find<DataGrid>(s, "CatalogGrid");
 
+            // 5 component, wind punya 2 release: 6 baris. Sel Version tidak pernah berisi beberapa versi.
             Assert.Equal(4, grid.Items.Count);
-            Assert.Equal("Page 1 of 2 · 5 components", Find<TextBlock>(s, "PageText").Text);
+            Assert.Equal("Page 1 of 2 · 6 releases", Find<TextBlock>(s, "PageText").Text);
             Assert.Equal("ION Middleware (ion-middleware) | 1.8.2 | Not imported", Row(s, 0));
             Assert.Equal("WIND (wind) | 2.1.0 | wind-build · 12 files", Row(s, 1));
-            Assert.Equal("Non-NDC Parser (non-ndc-parser) | None | Not imported", Row(s, 3));
+            Assert.Equal("WIND (wind) | 2.0.0 | Not imported", Row(s, 2));
+            Assert.Equal("QRAPTOR (qraptor) | 1.3.1 | Not imported", Row(s, 3));
             Assert.False(Find<Button>(s, "PrevButton").IsEnabled);
 
             Click(Find<Button>(s, "NextButton"));
-            Assert.Equal(1, grid.Items.Count);
-            Assert.Equal("Page 2 of 2 · 5 components", Find<TextBlock>(s, "PageText").Text);
-            Assert.Contains("MDD Service", Row(s, 0));
+            Assert.Equal(2, grid.Items.Count);
+            Assert.Equal("Page 2 of 2 · 6 releases", Find<TextBlock>(s, "PageText").Text);
+            Assert.Equal("Non-NDC Parser (non-ndc-parser) | None | Not imported", Row(s, 0));
+            Assert.Contains("MDD Service", Row(s, 1));
             Assert.False(Find<Button>(s, "NextButton").IsEnabled);
         });
     }
@@ -112,23 +116,23 @@ public class ComponentsScreenTests : IDisposable
             var filter = Find<ComboBox>(s, "FilterBox");
 
             Type(search, " WIND ");                       // id/nama, spasi dan huruf besar tidak berpengaruh
-            Assert.Equal(1, grid.Items.Count);
-            Assert.Equal("Page 1 of 1 · 1 component", Find<TextBlock>(s, "PageText").Text);
+            Assert.Equal(2, grid.Items.Count);            // wind punya dua release: dua baris
+            Assert.Equal("Page 1 of 1 · 2 releases", Find<TextBlock>(s, "PageText").Text);
 
             Type(search, "1.3.1");                        // cari lewat versi
             Assert.Contains("QRAPTOR", Row(s, 0));
 
             Type(search, "");
             filter.SelectedIndex = 1;                     // Saved releases
-            Assert.Equal("Page 1 of 1 · 3 components", Find<TextBlock>(s, "PageText").Text);
+            Assert.Equal("Page 1 of 1 · 4 releases", Find<TextBlock>(s, "PageText").Text);
             filter.SelectedIndex = 2;                     // Has local build
             Assert.Equal(1, grid.Items.Count);
             Assert.Contains("WIND", Row(s, 0));
             filter.SelectedIndex = 3;                     // Not saved
-            Assert.Equal("Page 1 of 1 · 2 components", Find<TextBlock>(s, "PageText").Text);
+            Assert.Equal("Page 1 of 1 · 2 releases", Find<TextBlock>(s, "PageText").Text);
 
             Type(search, "zzz");
-            Assert.Equal("Page 1 of 1 · 0 components", Find<TextBlock>(s, "PageText").Text);
+            Assert.Equal("Page 1 of 1 · 0 releases", Find<TextBlock>(s, "PageText").Text);
         });
     }
 
@@ -156,29 +160,7 @@ public class ComponentsScreenTests : IDisposable
     }
 
     [Fact]
-    public void LeftoverReleaseFiles_AreNeverListed_AndAWarningNamesThem()
-    {
-        // Sisa dari sebelum aturan satu release: dua file untuk satu component.
-        Rel("wind", "WIND", "2.1.0-dev", @"D:\APCONTAINER\WIND", "WIND").ToIni().Save(Paths.ComponentIni(_dir, "wind", "2.1.0-dev"));
-        WpfHost.Run(() =>
-        {
-            var s = NewScreen();
-            Assert.Equal("WIND (wind) | 2.1.0 | wind-build · 12 files", Row(s, 1));   // satu versi di daftar, bukan "2.1.0, 2.1.0-dev"
-
-            var notice = Find<Notice>(s, "CatalogNotice");
-            Assert.Equal(Visibility.Visible, notice.Visibility);
-            Assert.Equal(StatusKind.Warning, notice.Kind);
-            Assert.Contains(NoticeLines(notice), l => l.Contains("wind") && l.Contains("2.1.0-dev") && l.Contains("ignored"));
-
-            Choose(s, "wind");
-            Click(Find<Button>(s, "SaveButton"));   // menyimpan component membersihkannya
-            Assert.Equal(Visibility.Collapsed, Find<Notice>(s, "CatalogNotice").Visibility);
-        });
-        Assert.False(File.Exists(Paths.ComponentIni(_dir, "wind", "2.1.0-dev")));
-    }
-
-    [Fact]
-    public void ChoosingAComponent_LoadsItsOnlyRelease_AndSavingAnotherVersionReplacesIt()
+    public void ChoosingAComponent_LoadsTheLatestRelease_AndSavingAnotherVersionAddsARow()
     {
         WpfHost.Run(() =>
         {
@@ -186,14 +168,66 @@ public class ComponentsScreenTests : IDisposable
             var box = Find<ComboBox>(s, "ComponentBox");
             box.SelectedItem = box.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == "wind");   // dari dropdown, bukan OpenComponent
             Assert.Equal("2.1.0", Find<TextBox>(s, "VersionBox").Text);
-            Assert.Equal("Saved version: 2.1.0.", Find<TextBlock>(s, "SavedVersionsText").Text);
+            Assert.Equal("Saved versions: 2.1.0, 2.0.0", Find<TextBlock>(s, "SavedVersionsText").Text);
 
             Type(Find<TextBox>(s, "VersionBox"), "2.2.0");
-            Assert.Contains("Saving 2.2.0 replaces it", Find<TextBlock>(s, "SavedVersionsText").Text);
+            Assert.Contains("Saving 2.2.0 creates a new release", Find<TextBlock>(s, "SavedVersionsText").Text);
             Click(Find<Button>(s, "SaveButton"));
 
-            Assert.Equal(["2.2.0"], _store.ListVersions("wind"));
+            Assert.Equal(["2.2.0", "2.1.0", "2.0.0"], _store.ListVersions("wind"));   // yang lama tidak hilang
             Assert.Equal("WIND (wind) | 2.2.0 | Not imported", Row(s, 1));
+            Assert.Equal("WIND (wind) | 2.1.0 | wind-build · 12 files", Row(s, 2));
+        });
+    }
+
+    [Fact]
+    public void OpeningARow_LoadsThatVersion_NotTheLatest()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = NewScreen();
+            var window = Host(s);
+            var open = WpfHost.Descendants<Button>(Find<DataGrid>(s, "CatalogGrid")).Where(b => b.Content as string == "Open").ToList();
+            Click(open[2]);   // baris ketiga: wind 2.0.0
+
+            Assert.Equal("2.0.0", Find<TextBox>(s, "VersionBox").Text);
+            Assert.Equal("wind", (string)((ComboBoxItem)Find<ComboBox>(s, "ComponentBox").SelectedItem).Tag);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public void DeleteRelease_RemovesOnlyThatVersion_AndShowsTheNextOne()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = NewScreen();
+            Choose(s, "wind");
+            Assert.True(Find<Button>(s, "DeleteButton").IsEnabled);
+
+            s.DeleteRelease();   // 2.1.0 (versi di form)
+
+            Assert.Equal(["2.0.0"], _store.ListVersions("wind"));
+            Assert.Equal("2.0.0", Find<TextBox>(s, "VersionBox").Text);   // release yang tersisa tampil
+            Assert.Equal(StatusKind.Success, Find<Notice>(s, "ReleaseNotice").Kind);
+            Assert.Contains("Deleted wind@2.1.0", NoticeLines(Find<Notice>(s, "ReleaseNotice"))[0]);
+            Assert.Equal(["1.8.2"], _store.ListVersions("ion-middleware"));   // component lain tidak tersentuh
+        });
+    }
+
+    [Fact]
+    public void DeleteButton_IsDisabled_UntilTheFormShowsASavedRelease()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = NewScreen();
+            Choose(s, "wind");
+            Type(Find<TextBox>(s, "VersionBox"), "9.9.9");   // versi baru, belum tersimpan
+            Assert.False(Find<Button>(s, "DeleteButton").IsEnabled);
+
+            s.DeleteRelease();   // dipanggil paksa: ditolak, tidak ada yang terhapus
+            Assert.Equal(StatusKind.Error, Find<Notice>(s, "ReleaseNotice").Kind);
+            Assert.Equal(["2.1.0", "2.0.0"], _store.ListVersions("wind"));
         });
     }
 
@@ -402,13 +436,13 @@ public class ComponentsScreenTests : IDisposable
             Assert.Equal(Visibility.Visible, notice.Visibility);
             Assert.Equal(StatusKind.Error, notice.Kind);
             Assert.Equal(0, Find<DataGrid>(s, "CatalogGrid").Items.Count);
-            Assert.Equal("Page 1 of 1 · 0 components", Find<TextBlock>(s, "PageText").Text);
+            Assert.Equal("Page 1 of 1 · 0 releases", Find<TextBlock>(s, "PageText").Text);
 
             // Katalog kembali tersedia: Refresh memulihkan tampilan.
             File.WriteAllText(Paths.CatalogIni(_dir), "[Meta]\nSchemaVersion=1.0\n[Components]\nwind=WIND\n");
             s.Refresh();
             Assert.Equal(Visibility.Collapsed, notice.Visibility);
-            Assert.Equal(1, Find<DataGrid>(s, "CatalogGrid").Items.Count);
+            Assert.Equal(2, Find<DataGrid>(s, "CatalogGrid").Items.Count);   // wind: 2 release = 2 baris
         });
     }
 
