@@ -3,7 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:c="clr-namespace:IonPackMan.Controls">
     <UserControl.Resources>
-        <!-- Path executable ditampilkan sebagai tooltip baris (lebar 808px tidak cukup untuk kolomnya) -->
+        <!-- Path executable: kolom (dipotong dengan …) dan tooltip baris berisi path lengkap -->
+        <Style x:Key="PathCell" TargetType="TextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
         <Style x:Key="PathRow" TargetType="DataGridRow" BasedOn="{StaticResource GridRow}">
             <Setter Property="ToolTip" Value="{Binding Path}"/>
         </Style>
@@ -108,6 +113,7 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
                         <DataGridTextColumn Header="Startup Type" Binding="{Binding StartType}" Width="*"/>
+                        <DataGridTextColumn Header="Executable path" Binding="{Binding Path}" Width="2*" ElementStyle="{StaticResource PathCell}"/>
                     </DataGrid.Columns>
                 </DataGrid>
                 <c:EmptyState x:Name="ServicesEmpty" Icon="⚙" Title="No services to show" Visibility="Collapsed"
@@ -132,6 +138,7 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
                         <DataGridTextColumn Header="Memory" Binding="{Binding Memory}" Width="0.8*"/>
+                        <DataGridTextColumn Header="Executable path" Binding="{Binding Path}" Width="2*" ElementStyle="{StaticResource PathCell}"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </StackPanel>
