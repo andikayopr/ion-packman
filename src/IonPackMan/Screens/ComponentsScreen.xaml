@@ -21,8 +21,10 @@
     <StackPanel>
         <!-- Kepala: daftar -->
         <DockPanel x:Name="ListHead" Margin="0,0,0,16">
-            <Button x:Name="NewButton" DockPanel.Dock="Right" Content="＋ New release" Style="{StaticResource PrimaryButton}"
-                    VerticalAlignment="Center" Click="OnNewRelease"/>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="NewComponentButton" Content="＋ New component" Margin="0,0,8,0" Click="OnNewComponent"/>
+                <Button x:Name="NewButton" Content="＋ New release" Style="{StaticResource PrimaryButton}" Click="OnNewRelease"/>
+            </StackPanel>
             <StackPanel>
                 <TextBlock Text="Components" Style="{StaticResource PageTitle}"/>
                 <TextBlock Text="Define where each component release is installed and which service it runs as." Style="{StaticResource PageSubtitle}"/>

@@ -59,6 +59,7 @@ public class AppServicesTests : IDisposable
                 [MainWindow.Dashboard] = typeof(DashboardScreen),
                 [MainWindow.Components] = typeof(ComponentsScreen),
                 [MainWindow.Profiles] = typeof(ProfilesScreen),
+                [MainWindow.Clients] = typeof(ClientsScreen),
                 [MainWindow.History] = typeof(HistoryScreen),
                 [MainWindow.DevConsole] = typeof(DevConsoleScreen),
             };

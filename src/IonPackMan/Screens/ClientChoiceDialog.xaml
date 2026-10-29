@@ -1,0 +1,17 @@
+<Window x:Class="IonPackMan.Screens.ClientChoiceDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Style="{StaticResource {x:Type Window}}"
+        Title="Build source" Width="460" SizeToContent="Height"
+        ResizeMode="NoResize" ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
+    <!-- Memilih asal build saat import: Default atau Client yang meng-override component (ADR-006). -->
+    <StackPanel Margin="20,14,20,14">
+        <TextBlock x:Name="HeaderText" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"/>
+        <TextBlock x:Name="HintText" Style="{StaticResource MutedText}" Margin="0,4,0,10" TextWrapping="Wrap"/>
+        <ComboBox x:Name="ClientBox" DisplayMemberPath="Text" SelectedValuePath="Id" AutomationProperties.Name="Build source"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Cancel" Margin="0,0,8,0" IsCancel="True"/>
+            <Button x:Name="OkButton" Content="Import" Style="{StaticResource PrimaryButton}" IsDefault="True" Click="OnOkClick"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

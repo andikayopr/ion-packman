@@ -57,14 +57,14 @@ public class MainWindowTests : IDisposable
     private static T Find<T>(MainWindow w, string name) where T : class => (T)w.FindName(name);
 
     [Fact]
-    public void HasTheFiveMenus_AndStartsOnDashboard()
+    public void HasTheSixMenus_AndStartsOnDashboard()
     {
         WpfHost.Run(() =>
         {
             var w = Create();
 
-            Assert.Equal(new[] { "dashboard", "components", "profiles", "devconsole", "history" }, MainWindow.Menus.Select(m => m.Key));
-            Assert.Equal(5, Find<StackPanel>(w, "Nav").Children.Count);
+            Assert.Equal(new[] { "dashboard", "components", "profiles", "clients", "devconsole", "history" }, MainWindow.Menus.Select(m => m.Key));
+            Assert.Equal(6, Find<StackPanel>(w, "Nav").Children.Count);
             Assert.Equal("dashboard", w.CurrentKey);
             Assert.Equal("Dashboard", Find<System.Windows.Documents.Run>(w, "CrumbText").Text);
             Assert.DoesNotContain(MainWindow.Menus, m => m.Title.Contains("Release"));   // menu Release = Tahap 2
@@ -138,13 +138,13 @@ public class MainWindowTests : IDisposable
 
             w.SetMachine(Machine("Production"), []);
             Assert.False(w.IsMenuEnabled(MainWindow.DevConsole));
-            Assert.Equal("Only available on Development machines (this machine is 'Production')", ((RadioButton)Find<StackPanel>(w, "Nav").Children[3]).ToolTip);
+            Assert.Equal("Only available on Development machines (this machine is 'Production')", ((RadioButton)Find<StackPanel>(w, "Nav").Children[4]).ToolTip);
 
             w.SetMachine(null, ["machine.ini: file not found."]);   // tidak terbaca = terkunci juga
             Assert.False(w.IsMenuEnabled(MainWindow.DevConsole));
             Assert.Equal("machine.ini is not valid", Find<TextBlock>(w, "MachineText").Text);
             // Alasan terkunci menyebut masalah sebenarnya, bukan "bukan Development".
-            Assert.Contains("machine.ini could not be loaded (machine.ini: file not found.)", (string)((RadioButton)Find<StackPanel>(w, "Nav").Children[3]).ToolTip);
+            Assert.Contains("machine.ini could not be loaded (machine.ini: file not found.)", (string)((RadioButton)Find<StackPanel>(w, "Nav").Children[4]).ToolTip);
             Assert.Contains("file not found", (string)Find<TextBlock>(w, "MachineText").ToolTip);
         });
     }

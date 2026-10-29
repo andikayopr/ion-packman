@@ -4,14 +4,16 @@ using System.Security.Cryptography;
 using System.Text;
 using IonPackMan.Components;
 using IonPackMan.Ini;
+using IonPackMan.Machine;
 
 namespace IonPackMan.Builds;
 
 /// <summary>
-/// Mengimpor folder build ke local cache (PRD R5, D8, D10): salin ke Builds\&lt;id&gt;@&lt;versi&gt;\files\,
+/// Mengimpor folder build ke local cache (PRD R5, D8, D10): salin ke Builds\&lt;id&gt;@&lt;versi&gt;[@&lt;CLIENT&gt;]\files\,
 /// hitung SHA-256 tiap file, tulis build.ini dan files.sha256, serta memeriksa ulang (Verify) kapan saja.
 /// Tidak pernah menghapus build lain; semua penulisan terbatas pada folder build id@versi yang diimpor
 /// (plus folder sementara bersaudara "id@versi~importing" yang selalu dibersihkan).
+/// Build default dan build tiap Client punya folder sendiri, sehingga tidak saling menimpa (ADR-006).
 /// </summary>
 public sealed class BuildImporter
 {
@@ -21,28 +23,40 @@ public sealed class BuildImporter
 
     private readonly string _cacheDir;
     private readonly Func<string, long> _freeSpace;
+    private readonly ClientConfig _clients;
 
-    public BuildImporter(string cacheDir, Func<string, long>? freeSpace = null)
+    /// <param name="clients">Daftar Client untuk memeriksa pilihan Client saat import; null = tidak ada Client (hanya default).</param>
+    public BuildImporter(string cacheDir, Func<string, long>? freeSpace = null, ClientConfig? clients = null)
     {
         _cacheDir = cacheDir;
         _freeSpace = freeSpace ?? DefaultFreeSpace;
+        _clients = clients ?? ClientConfig.None;
     }
 
     private static long DefaultFreeSpace(string path) =>
         new DriveInfo(Path.GetPathRoot(Path.GetFullPath(path))!).AvailableFreeSpace;
 
-    /// <summary>Apakah build id@versi sudah ada (layar bisa meminta konfirmasi sebelum import ulang menggantikannya).</summary>
-    public bool Exists(string componentId, string releaseVersion) =>
-        ComponentRelease.IsValidId(componentId) && ComponentRelease.IsValidVersion(releaseVersion)
-        && Directory.Exists(Paths.BuildDir(_cacheDir, componentId, releaseVersion));
+    /// <summary>Apakah build id@versi (untuk <paramref name="client"/>; "" = default) sudah ada (layar bisa meminta konfirmasi sebelum import ulang menggantikannya).</summary>
+    public bool Exists(string componentId, string releaseVersion, string client = "") =>
+        ComponentRelease.IsValidId(componentId) && ComponentRelease.IsValidVersion(releaseVersion) && IsValidClient(client)
+        && Directory.Exists(Paths.BuildDir(_cacheDir, componentId, releaseVersion, client));
+
+    private static bool IsValidClient(string client) => client.Length == 0 || ClientConfig.IsValidId(client);
 
     // ---------- Import ----------
 
+    /// <param name="client">"" = build default; selain itu Client yang meng-override component ini di clients.ini.</param>
     public (BuildInfo? Build, List<string> Errors) Import(
-        string componentId, string releaseVersion, string sourceFolder, Action<int, int>? progress = null)
+        string componentId, string releaseVersion, string sourceFolder, Action<int, int>? progress = null, string client = "")
     {
         if (!ComponentRelease.IsValidId(componentId) || !ComponentRelease.IsValidVersion(releaseVersion))
             return (null, [$"'{componentId}@{releaseVersion}' is not a valid component release."]);
+        if (client.Length > 0)
+        {
+            if (!_clients.Overrides(client, componentId))
+                return (null, [$"'{client}' is not a Client that overrides {componentId} in clients.ini. Import it as a default build, or choose a Client listed for this component."]);
+            client = _clients.ExactId(client);
+        }
 
         string source;
         string cache;
@@ -85,14 +99,14 @@ public sealed class BuildImporter
 
         // Salin ke folder sementara lebih dulu; baru ditukar setelah semuanya selesai.
         string stagingVersion = releaseVersion + StagingSuffix;
-        string stagingDir = Paths.BuildDir(_cacheDir, componentId, stagingVersion);
-        string finalDir = Paths.BuildDir(_cacheDir, componentId, releaseVersion);
-        string oldDir = Paths.BuildDir(_cacheDir, componentId, releaseVersion + OldSuffix);
+        string stagingDir = Paths.BuildDir(_cacheDir, componentId, stagingVersion, client);
+        string finalDir = Paths.BuildDir(_cacheDir, componentId, releaseVersion, client);
+        string oldDir = Paths.BuildDir(_cacheDir, componentId, releaseVersion + OldSuffix, client);
 
         try
         {
             DeleteIfExists(stagingDir); // sisa import yang terputus (milik kita sendiri)
-            string stagingFiles = Paths.BuildFilesDir(_cacheDir, componentId, stagingVersion);
+            string stagingFiles = Paths.BuildFilesDir(_cacheDir, componentId, stagingVersion, client);
             Directory.CreateDirectory(stagingFiles);
 
             var lines = new StringBuilder();
@@ -104,9 +118,10 @@ public sealed class BuildImporter
                 progress?.Invoke(i + 1, files.Count);
             }
 
-            var info = new BuildInfo(componentId, releaseVersion, FolderName(source), files.Count, total, DateTimeOffset.Now);
-            ToIni(info).Save(Paths.BuildIni(_cacheDir, componentId, stagingVersion));
-            File.WriteAllText(Paths.BuildChecksums(_cacheDir, componentId, stagingVersion), lines.ToString(),
+            var (branch, commit) = GitInfo.Read(source);
+            var info = new BuildInfo(componentId, releaseVersion, FolderName(source), files.Count, total, DateTimeOffset.Now, client, branch, commit);
+            ToIni(info).Save(Paths.BuildIni(_cacheDir, componentId, stagingVersion, client));
+            File.WriteAllText(Paths.BuildChecksums(_cacheDir, componentId, stagingVersion, client), lines.ToString(),
                 new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
             Swap(stagingDir, finalDir, oldDir);
@@ -114,7 +129,7 @@ public sealed class BuildImporter
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return (null, [$"Cannot import {componentId}@{releaseVersion}: {ex.Message}"]);
+            return (null, [$"Cannot import {Label(componentId, releaseVersion, client)}: {ex.Message}"]);
         }
         finally
         {
@@ -147,12 +162,12 @@ public sealed class BuildImporter
 
     // ---------- Load / Verify / List ----------
 
-    public (BuildInfo? Build, List<string> Errors) Load(string componentId, string releaseVersion)
+    public (BuildInfo? Build, List<string> Errors) Load(string componentId, string releaseVersion, string client = "")
     {
-        if (!ComponentRelease.IsValidId(componentId) || !ComponentRelease.IsValidVersion(releaseVersion))
-            return (null, [$"'{componentId}@{releaseVersion}' is not a valid component release."]);
+        if (!ComponentRelease.IsValidId(componentId) || !ComponentRelease.IsValidVersion(releaseVersion) || !IsValidClient(client))
+            return (null, [$"'{Label(componentId, releaseVersion, client)}' is not a valid component release."]);
 
-        string path = Paths.BuildIni(_cacheDir, componentId, releaseVersion);
+        string path = Paths.BuildIni(_cacheDir, componentId, releaseVersion, client);
         var (ini, errors) = IniSchema.TryLoad(path);
         if (ini is null)
             return (null, errors);
@@ -160,13 +175,15 @@ public sealed class BuildImporter
         errors.AddRange(IniSchema.CheckMeta(ini));
         errors.AddRange(ini.CheckSections("Meta", "Build"));
         errors.AddRange(ini.CheckKeys("Build",
-            required: ["ComponentId", "ReleaseVersion", "SourceFolderName", "FileCount", "TotalBytes", "ImportedAt"], optional: []));
+            required: ["ComponentId", "ReleaseVersion", "SourceFolderName", "FileCount", "TotalBytes", "ImportedAt"],
+            optional: ["Client", "GitBranch", "GitCommit"]));
         if (errors.Count > 0)
             return (null, errors.Select(e => $"{path}: {e}").ToList());
 
         string id = ini.Get("Build", "ComponentId")!, version = ini.Get("Build", "ReleaseVersion")!;
-        if (id != componentId || version != releaseVersion)
-            errors.Add($"file declares {id}@{version} but its folder says {componentId}@{releaseVersion}.");
+        string declaredClient = ini.Get("Build", "Client") ?? "";
+        if (id != componentId || version != releaseVersion || !declaredClient.Equals(client, StringComparison.OrdinalIgnoreCase))
+            errors.Add($"file declares {Label(id, version, declaredClient)} but its folder says {Label(componentId, releaseVersion, client)}.");
         if (!int.TryParse(ini.Get("Build", "FileCount"), NumberStyles.None, CultureInfo.InvariantCulture, out int count))
             errors.Add("[Build] FileCount is not a valid number.");
         if (!long.TryParse(ini.Get("Build", "TotalBytes"), NumberStyles.None, CultureInfo.InvariantCulture, out long bytes))
@@ -176,13 +193,14 @@ public sealed class BuildImporter
         if (errors.Count > 0)
             return (null, errors.Select(e => $"{path}: {e}").ToList());
 
-        return (new BuildInfo(id, version, ini.Get("Build", "SourceFolderName")!, count, bytes, at), []);
+        return (new BuildInfo(id, version, ini.Get("Build", "SourceFolderName")!, count, bytes, at,
+            declaredClient, ini.Get("Build", "GitBranch") ?? "", ini.Get("Build", "GitCommit") ?? ""), []);
     }
 
     /// <summary>Isi files.sha256: path relatif (pemisah '/') -> SHA-256 huruf kecil. Null + error bila tidak terbaca atau rusak.</summary>
-    public (Dictionary<string, string>? Files, List<string> Errors) ReadChecksums(string componentId, string releaseVersion)
+    public (Dictionary<string, string>? Files, List<string> Errors) ReadChecksums(string componentId, string releaseVersion, string client = "")
     {
-        string sumsPath = Paths.BuildChecksums(_cacheDir, componentId, releaseVersion);
+        string sumsPath = Paths.BuildChecksums(_cacheDir, componentId, releaseVersion, client);
         var expected = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         try
         {
@@ -203,14 +221,14 @@ public sealed class BuildImporter
     }
 
     /// <summary>Membandingkan isi folder files dengan files.sha256. Daftar kosong = build valid.</summary>
-    public List<string> Verify(string componentId, string releaseVersion, Action<int, int>? progress = null)
+    public List<string> Verify(string componentId, string releaseVersion, Action<int, int>? progress = null, string client = "")
     {
-        var (info, loadErrors) = Load(componentId, releaseVersion);
+        var (info, loadErrors) = Load(componentId, releaseVersion, client);
         if (info is null)
             return loadErrors;
 
-        string filesDir = Paths.BuildFilesDir(_cacheDir, componentId, releaseVersion);
-        var (expected, sumsErrors) = ReadChecksums(componentId, releaseVersion);
+        string filesDir = Paths.BuildFilesDir(_cacheDir, componentId, releaseVersion, client);
+        var (expected, sumsErrors) = ReadChecksums(componentId, releaseVersion, client);
         if (expected is null)
             return sumsErrors;
 
@@ -263,7 +281,7 @@ public sealed class BuildImporter
         return problems;
     }
 
-    /// <summary>Semua build di cache, diurutkan menurut id lalu versi. Folder sementara/bukan build dilewati.</summary>
+    /// <summary>Semua build di cache (default dan Client), diurutkan menurut id, versi, lalu Client. Folder sementara/bukan build dilewati.</summary>
     public List<BuildSummary> ListBuilds()
     {
         string root = Paths.BuildsDir(_cacheDir);
@@ -276,13 +294,14 @@ public sealed class BuildImporter
             foreach (var dir in Directory.EnumerateDirectories(root))
             {
                 string name = Path.GetFileName(dir);
-                int at = name.IndexOf('@');
-                if (at <= 0) continue;
-                string id = name[..at], version = name[(at + 1)..];
-                if (!ComponentRelease.IsValidId(id) || !ComponentRelease.IsValidVersion(version)) continue;
+                var parts = name.Split('@');
+                if (parts.Length is < 2 or > 3) continue;
+                string id = parts[0], version = parts[1], client = parts.Length == 3 ? parts[2] : "";
+                if (!ComponentRelease.IsValidId(id) || !ComponentRelease.IsValidVersion(version)
+                    || (parts.Length == 3 && !ClientConfig.IsValidId(client))) continue;
 
-                var (info, _) = Load(id, version);
-                result.Add(new BuildSummary(id, version, info?.SourceFolderName, info?.FileCount ?? 0));
+                var (info, _) = Load(id, version, client);
+                result.Add(new BuildSummary(id, version, info?.SourceFolderName, info?.FileCount ?? 0, client));
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -290,7 +309,8 @@ public sealed class BuildImporter
             // Folder Builds tidak terbaca: tampilkan apa yang sudah terkumpul.
         }
 
-        return result.OrderBy(b => b.ComponentId, StringComparer.Ordinal).ThenBy(b => b.ReleaseVersion, StringComparer.Ordinal).ToList();
+        return result.OrderBy(b => b.ComponentId, StringComparer.Ordinal).ThenBy(b => b.ReleaseVersion, StringComparer.Ordinal)
+            .ThenBy(b => b.Client, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     // ---------- helper ----------
@@ -360,6 +380,9 @@ public sealed class BuildImporter
         ini.Set("Build", "FileCount", info.FileCount.ToString(CultureInfo.InvariantCulture));
         ini.Set("Build", "TotalBytes", info.TotalBytes.ToString(CultureInfo.InvariantCulture));
         ini.Set("Build", "ImportedAt", info.ImportedAt.ToString("o", CultureInfo.InvariantCulture));
+        ini.Set("Build", "Client", info.Client);
+        ini.Set("Build", "GitBranch", info.GitBranch);
+        ini.Set("Build", "GitCommit", info.GitCommit);
         return ini;
     }
 
@@ -388,6 +411,10 @@ public sealed class BuildImporter
         try { DeleteIfExists(dir); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
+
+    /// <summary>"id@versi" atau "id@versi@CLIENT", untuk pesan.</summary>
+    public static string Label(string componentId, string releaseVersion, string client = "") =>
+        client.Length == 0 ? $"{componentId}@{releaseVersion}" : $"{componentId}@{releaseVersion}@{client}";
 
     private static string FormatSize(long bytes) => $"{bytes / (1024.0 * 1024.0):0.##} MB";
 }

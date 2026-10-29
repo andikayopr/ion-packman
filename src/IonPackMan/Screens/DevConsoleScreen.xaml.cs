@@ -40,6 +40,7 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     private readonly BackupStore _backups;
     private readonly ProfileDetector? _detector;
     private readonly ExecutionLock _gate;
+    private readonly ClientConfig _clients;
 
     private bool _updating = true;         // true selama kontrol diisi dari kode (bukan perubahan oleh pengguna)
     private bool _locked;
@@ -55,9 +56,10 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     public event Action<string>? Message;
 
     public DevConsoleScreen(MachineConfig machine, ProfileStore profiles, ComponentStore components, BuildImporter builds,
-        PlanBuilder planner, Deployer deployer, BackupStore backups, ProfileDetector? detector, ExecutionLock? gate = null)
+        PlanBuilder planner, Deployer deployer, BackupStore backups, ProfileDetector? detector, ExecutionLock? gate = null, ClientConfig? clients = null)
     {
         _gate = gate ?? new ExecutionLock();
+        _clients = clients ?? ClientConfig.None;
         _machine = machine;
         _profiles = profiles;
         _components = components;
@@ -216,6 +218,10 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
     // Restart service tidak butuh build. Build baru wajib bila Deploy files dicentang (PlanBuilder menolaknya dengan pesan jelas).
     private HashSet<string> _importedVersions = [];
 
+    // Build yang boleh dipakai untuk component ini di mesin ber-Client (ADR-006 §4): "" = default.
+    private string BuildClient => SelectedComponent is { } id ? _clients.BuildClientFor(_machine.Client, id) : "";
+    private string BuildKind => BuildClient.Length == 0 ? "" : BuildClient + " ";
+
     private void LoadBuilds(string? previous)
     {
         previous ??= SelectedVersion;
@@ -223,10 +229,13 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
         _importedVersions = [];
         if (SelectedComponent is { } componentId)
         {
-            var imported = _builds.ListBuilds().Where(b => b.ComponentId == componentId).ToDictionary(b => b.ReleaseVersion);
+            string client = BuildClient;
+            var imported = _builds.ListBuilds()
+                .Where(b => b.ComponentId == componentId && b.Client.Equals(client, StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(b => b.ReleaseVersion);
             _importedVersions = [.. imported.Keys];
             items = _components.ListVersions(componentId)
-                .Select(v => new BuildItem(v, imported.TryGetValue(v, out var build) ? $"{v} · {build.Display}" : $"{v} · no build imported"))
+                .Select(v => new BuildItem(v, imported.TryGetValue(v, out var build) ? $"{v} · {build.Display}" : $"{v} · no {BuildKind}build imported"))
                 .ToList();
         }
 
@@ -254,10 +263,30 @@ public partial class DevConsoleScreen : UserControl, IScreen, IBusyScreen
         string? text = _profileProblem ?? releaseProblem
             ?? (SelectedComponent is not null && BuildBox.Items.Count == 0 ? "Save a component release in Components first." : null)
             ?? (SelectedVersion is { } version && !_importedVersions.Contains(version)
-                ? "No build is imported for this version. That is fine for Apply config or Restart service; Deploy files needs one (import it in Components)."
+                ? $"No {BuildKind}build is imported for this version. That is fine for Apply config or Restart service; Deploy files needs one (import it in Components)."
                 : null);
         BuildHint.Text = text ?? "";
         BuildHint.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
+        UpdateClientHint();
+    }
+
+    // Menjelaskan build mana yang dipakai component ini di mesin ber-Client, supaya developer tidak perlu menebak (ADR-006).
+    private void UpdateClientHint()
+    {
+        string? text = null;
+        if (SelectedComponent is { } id)
+        {
+            var overriding = _clients.ClientsOverriding(id);
+            string machineClient = _machine.Client;
+            if (machineClient.Length > 0 && _clients.Overrides(machineClient, id))
+                text = $"Client {_clients.ExactId(machineClient)}: {id} uses the {_clients.ExactId(machineClient)} branch build.";
+            else if (machineClient.Length > 0)
+                text = $"Client {_clients.ExactId(machineClient)}: {id} has no {_clients.ExactId(machineClient)} branch, so the default build is used.";
+            else if (overriding.Count > 0)
+                text = $"No Client is set, so the default build is used. {id} also has branch builds for {string.Join(", ", overriding)}; set the Client on the Dashboard to deploy one.";
+        }
+        ClientHint.Text = text ?? "";
+        ClientHint.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     // Target directory dan service name satu sumber: Component release. Tidak ada yang bisa diketik.

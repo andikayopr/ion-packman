@@ -38,6 +38,48 @@ public sealed class ComponentStore
         return (entries, []);
     }
 
+    /// <summary>
+    /// Mendaftarkan component baru di catalog.ini (entri yang ada dipertahankan; komentar di file tidak).
+    /// Mengembalikan masalah; kosong = tersimpan.
+    /// </summary>
+    public List<string> AddToCatalog(string id, string displayName)
+    {
+        id = id.Trim();
+        displayName = displayName.Trim();
+        var problems = new List<string>();
+        if (!ComponentRelease.IsValidId(id))
+            problems.Add($"'{id}' is not a valid component Id (lowercase letters and digits, words separated by '-', e.g. offline-auth).");
+        if (displayName.Length == 0)
+            problems.Add("Display name is required.");
+        if (problems.Count > 0)
+            return problems;
+
+        var (entries, loadErrors) = LoadCatalog();
+        if (loadErrors.Count > 0)
+            return loadErrors;
+        if (entries.Any(e => e.Id == id))
+            return [$"Component '{id}' is already in the catalog."];
+
+        try
+        {
+            var ini = new IniFile();
+            ini.Set("Meta", "SchemaVersion", IniSchema.CurrentVersion);
+            foreach (var entry in entries)
+                ini.Set("Components", entry.Id, entry.DisplayName);
+            ini.Set("Components", id, displayName);
+            ini.Save(Paths.CatalogIni(_releaseDir));
+            return [];
+        }
+        catch (ArgumentException ex)
+        {
+            return [ex.Message];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [$"Cannot save the component catalog: {ex.Message}"];
+        }
+    }
+
     /// <summary>Versi yang sudah disimpan untuk satu component, terbaru dulu.</summary>
     public List<string> ListVersions(string componentId)
     {

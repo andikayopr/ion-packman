@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -12,14 +13,20 @@ public partial class DashboardScreen : UserControl, IScreen
 {
     private readonly DashboardReader _reader;
     private readonly RecoveryService? _recovery;
+    private readonly MachineConfig? _machine;
+    private readonly ClientConfig _clients;
+    private bool _updatingClient;
+    private const string NoClient = "(none) default";
     private DashboardSnapshot? _snapshot;
 
     public event Action<string>? Message;
 
     /// <param name="recovery">null bila machine.ini/allowlist.ini tidak valid (tidak ada yang bisa dipulihkan atau dijalankan).</param>
-    public DashboardScreen(DashboardReader reader, RecoveryService? recovery = null)
+    public DashboardScreen(DashboardReader reader, RecoveryService? recovery = null, MachineConfig? machine = null, ClientConfig? clients = null)
     {
         InitializeComponent();
+        _machine = machine;
+        _clients = clients ?? ClientConfig.None;
         _reader = reader;
         _recovery = recovery;
     }
@@ -135,20 +142,57 @@ public partial class DashboardScreen : UserControl, IScreen
         ProfilePill.Text = s.ProfileKind == StatusKind.Success ? "Detected" : "Not detected";
         ProfilePill.Kind = s.ProfileKind;
         ProfilePill.ToolTip = s.ProfileReason;
+        ClientText.Text = s.ClientText.Length > 0 ? $"Client: {s.ClientText}" : "";
+        ShowClientPicker();
         WindowsText.Text = s.WindowsVersion;
-        DeploymentPill.Text = s.DeploymentState;
-        DeploymentPill.Kind = s.DeploymentKind;
-        BaseDirectory.Text = s.BaseDirectory;
-        BaseDirectory.ToolTip = s.BaseDirectory;
-        ProfileConfig.Text = s.ProfileConfig;
-        ProfileConfig.ToolTip = s.ProfileConfig;
-        LastDeployment.Text = s.LastDeployment;
 
         // Alasan "Unknown" harus terlihat (R1), bukan hanya di tooltip.
         ProblemNotice.Visibility = s.ProfileKind == StatusKind.Success ? Visibility.Collapsed : Visibility.Visible;
         ProblemNotice.Content = new TextBlock { Text = $"Profile not detected: {s.ProfileReason}", TextWrapping = TextWrapping.Wrap };
 
+        var clientWarnings = s.ClientWarnings ?? [];
+        ClientNotice.Visibility = clientWarnings.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        ClientNotice.Content = clientWarnings.Count == 0 ? null
+            : new TextBlock { Text = string.Join(Environment.NewLine, clientWarnings), TextWrapping = TextWrapping.Wrap };
+
         ApplyFilter();
+    }
+
+    // Client mesin dev dipilih di sini dan disimpan ke machine.ini (ADR-006). Hanya di mesin Development dan bila clients.ini punya Client.
+    private void ShowClientPicker()
+    {
+        bool canSet = _machine is { IsDevelopment: true } && _clients.Clients.Count > 0;
+        ClientPicker.Visibility = canSet ? Visibility.Visible : Visibility.Collapsed;
+        ClientText.Visibility = canSet ? Visibility.Collapsed : Visibility.Visible;
+        if (!canSet)
+            return;
+
+        _updatingClient = true;
+        try
+        {
+            ClientBox.ItemsSource = new[] { NoClient }.Concat(_clients.Clients.Keys).ToList();
+            ClientBox.SelectedItem = _machine!.Client.Length == 0 ? NoClient : _clients.ExactId(_machine.Client);
+        }
+        finally { _updatingClient = false; }
+    }
+
+    private void OnClientChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingClient || _machine is null || ClientBox.SelectedItem is not string chosen)
+            return;
+
+        string client = chosen == NoClient ? "" : chosen;
+        if (client.Equals(_machine.Client, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (_machine.TrySetClient(client) is { } problem)
+        {
+            Message?.Invoke(problem);
+            ShowClientPicker();
+            return;
+        }
+        Message?.Invoke(client.Length == 0 ? "Client cleared: this machine now deploys default builds." : $"Client set to {client}.");
+        Refresh();   // peringatan build yang tidak sesuai ikut diperbarui
     }
 
     private void ApplyFilter()

@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "IonPackMan (1024x768)": {
+      "commandName": "Project",
+      "commandLineArgs": "--window 1024x768"
+    },
+    "IonPackMan (maximized)": {
+      "commandName": "Project"
+    }
+  }
+}

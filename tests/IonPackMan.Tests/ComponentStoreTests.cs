@@ -291,4 +291,43 @@ public class ComponentStoreTests : IDisposable
         File.WriteAllText(Paths.CatalogIni(_dir), "[Meta]\nSchemaVersion=1.0\n[Components]\n..\\evil=x\n");
         Assert.Contains(_store.LoadCatalog().Errors, e => e.Contains("not a valid component Id"));
     }
+
+    private void SeedCatalog()
+    {
+        Directory.CreateDirectory(Path.Combine(_dir, "Components"));
+        File.WriteAllText(Paths.CatalogIni(_dir), "[Meta]\nSchemaVersion=1.0\n[Components]\nion-middleware=ION Middleware\nwind=WIND\n");
+    }
+
+    [Fact]
+    public void AddToCatalog_AppendsAndKeepsExistingEntries()
+    {
+        SeedCatalog();
+
+        Assert.Empty(_store.AddToCatalog(" offline-auth ", " Offline Auth "));
+
+        var (entries, errors) = _store.LoadCatalog();
+        Assert.Empty(errors);
+        Assert.Equal(new[] { "ion-middleware", "wind", "offline-auth" }, entries.Select(e => e.Id));
+        Assert.Equal("Offline Auth", entries[2].DisplayName);
+        Assert.Equal("ION Middleware", entries[0].DisplayName);
+    }
+
+    [Fact]
+    public void AddToCatalog_RejectsDuplicateBadIdAndEmptyName_WithoutChangingTheFile()
+    {
+        SeedCatalog();
+        string before = File.ReadAllText(Paths.CatalogIni(_dir));
+
+        Assert.Contains("already in the catalog", Assert.Single(_store.AddToCatalog("wind", "Another")));
+        Assert.Contains("not a valid component Id", Assert.Single(_store.AddToCatalog("Bad Id", "x")));
+        Assert.Contains("Display name is required", Assert.Single(_store.AddToCatalog("new-one", "  ")));
+
+        Assert.Equal(before, File.ReadAllText(Paths.CatalogIni(_dir)));
+    }
+
+    [Fact]
+    public void AddToCatalog_MissingCatalog_ReportsInsteadOfCreatingOne()
+    {
+        Assert.Contains("file not found", Assert.Single(_store.AddToCatalog("new-one", "New One")));
+    }
 }

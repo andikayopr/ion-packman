@@ -19,6 +19,11 @@ public sealed record HistoryRecord
     public string Profile { get; init; } = "";
     public required string Component { get; init; }
     public string BuildVersion { get; init; } = "";
+    /// <summary>Client build yang di-deploy (ADR-006); kosong = default atau tidak ada build (tanpa DeployFiles).</summary>
+    public string Client { get; init; } = "";
+    /// <summary>Branch dan commit git sumber build; kosong bila tidak terbaca atau tanpa DeployFiles.</summary>
+    public string GitBranch { get; init; } = "";
+    public string GitCommit { get; init; } = "";
     /// <summary>Nama operasi, mis. DeployFiles, ApplyConfig (tanpa koma).</summary>
     public IReadOnlyList<string> Operations { get; init; } = [];
     public required HistoryOutcome Outcome { get; init; }

@@ -18,12 +18,15 @@ public sealed class Guards
     private readonly BuildImporter _builds;
     private readonly Func<List<string>> _unfinishedBackups;
     private readonly Func<string, long> _freeSpace;
+    private readonly ClientConfig _clients;
 
     /// <param name="unfinishedBackups">Baris deskripsi backup yang belum selesai/bermasalah; kosong = tidak ada.</param>
     /// <param name="freeSpace">Ruang kosong (byte) pada drive sebuah path; default memakai DriveInfo (parameter ini agar bisa dites).</param>
+    /// <param name="clients">Client dan override-nya (ADR-006); null = tidak ada Client, semua build default.</param>
     public Guards(MachineConfig machine, AllowList allowList, BuildImporter builds,
-        Func<List<string>> unfinishedBackups, Func<string, long>? freeSpace = null)
+        Func<List<string>> unfinishedBackups, Func<string, long>? freeSpace = null, ClientConfig? clients = null)
     {
+        _clients = clients ?? ClientConfig.None;
         _machine = machine;
         _allowList = allowList;
         _builds = builds;
@@ -36,6 +39,7 @@ public sealed class Guards
         var problems = new List<string>();
 
         CheckEnvironment(problems);
+        CheckClient(plan, problems);
         CheckPaths(plan, problems);
         CheckAllowList(plan, problems);
         CheckBuild(plan, problems);
@@ -48,6 +52,24 @@ public sealed class Guards
     {
         if (!_machine.IsDevelopment)
             problems.Add($"The Developer Console only runs on Development machines (this machine is '{_machine.Environment}').");
+    }
+
+    // ADR-006 §4: build yang di-deploy harus sesuai Client mesin. Dicek ulang di Deployer, jadi plan yang basi atau diubah tertolak.
+    private void CheckClient(DeploymentPlan plan, List<string> problems)
+    {
+        if (_machine.Client.Length > 0 && !_clients.IsKnown(_machine.Client))
+        {
+            problems.Add($"machine.ini Client '{_machine.Client}' is not listed in clients.ini.");
+            return;
+        }
+        if (!plan.DeployFiles)
+            return;
+
+        string expected = _clients.BuildClientFor(_machine.Client, plan.ComponentId);
+        if (!plan.BuildClient.Equals(expected, StringComparison.OrdinalIgnoreCase))
+            problems.Add(expected.Length == 0
+                ? $"{plan.ComponentId} must be deployed from a default build on this machine, but the plan uses the {plan.BuildClient} build."
+                : $"Client {expected} uses its own branch of {plan.ComponentId}, so only the {expected} build can be deployed, not the {(plan.BuildClient.Length == 0 ? "default" : plan.BuildClient)} build.");
     }
 
     private void CheckPaths(DeploymentPlan plan, List<string> problems)
@@ -97,8 +119,8 @@ public sealed class Guards
     {
         if (!plan.DeployFiles)
             return;
-        problems.AddRange(_builds.Verify(plan.ComponentId, plan.ReleaseVersion)
-            .Select(p => $"Imported build {plan.ComponentId}@{plan.ReleaseVersion} is not valid: {p}"));
+        problems.AddRange(_builds.Verify(plan.ComponentId, plan.ReleaseVersion, client: plan.BuildClient)
+            .Select(p => $"Imported build {BuildImporter.Label(plan.ComponentId, plan.ReleaseVersion, plan.BuildClient)} is not valid: {p}"));
     }
 
     private void CheckDisk(DeploymentPlan plan, List<string> problems)

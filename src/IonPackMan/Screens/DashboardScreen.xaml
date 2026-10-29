@@ -43,34 +43,29 @@
         </c:Notice>
 
         <c:Notice x:Name="ProblemNotice" Kind="Warning" Visibility="Collapsed"/>
+        <c:Notice x:Name="ClientNotice" Kind="Warning" Visibility="Collapsed"/>
 
         <!-- 4 kartu metrik dalam satu baris -->
-        <UniformGrid Columns="4">
+        <UniformGrid Columns="3">
             <HeaderedContentControl Style="{StaticResource Card}" Margin="0,0,6,0">
                 <StackPanel><TextBlock Text="Machine Name" Style="{StaticResource MutedText}"/><TextBlock x:Name="MachineName" Style="{StaticResource MetricValue}"/>
                     <TextBlock x:Name="EnvironmentText" Style="{StaticResource MutedText}" FontSize="11" Margin="0,2,0,0"/></StackPanel>
             </HeaderedContentControl>
             <HeaderedContentControl Style="{StaticResource Card}" Margin="3,0">
                 <StackPanel><TextBlock Text="Detected Profile" Style="{StaticResource MutedText}"/><TextBlock x:Name="ProfileName" Style="{StaticResource MetricValue}"/>
-                    <c:StatusPill x:Name="ProfilePill" Margin="0,4,0,0"/></StackPanel>
+                    <c:StatusPill x:Name="ProfilePill" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="ClientText" Style="{StaticResource MutedText}" FontSize="11" Margin="0,4,0,0"/>
+                    <StackPanel x:Name="ClientPicker" Orientation="Horizontal" Margin="0,4,0,0" Visibility="Collapsed">
+                        <TextBlock Text="Client" Style="{StaticResource MutedText}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox x:Name="ClientBox" Width="150" FontSize="11" SelectionChanged="OnClientChanged"
+                                  ToolTip="Client (bank) whose builds this machine deploys. Saved in machine.ini." AutomationProperties.Name="Client"/>
+                    </StackPanel></StackPanel>
             </HeaderedContentControl>
-            <HeaderedContentControl Style="{StaticResource Card}" Margin="3,0">
+            <HeaderedContentControl Style="{StaticResource Card}" Margin="6,0,0,0">
                 <StackPanel><TextBlock Text="Windows" Style="{StaticResource MutedText}"/><TextBlock x:Name="WindowsText" Style="{StaticResource MetricValue}" FontSize="13"
                                                                                                        TextWrapping="Wrap" TextTrimming="None"/></StackPanel>
             </HeaderedContentControl>
-            <HeaderedContentControl Style="{StaticResource Card}" Margin="6,0,0,0">
-                <StackPanel><TextBlock Text="Deployment State" Style="{StaticResource MutedText}"/><c:StatusPill x:Name="DeploymentPill" Margin="0,6,0,0"/></StackPanel>
-            </HeaderedContentControl>
         </UniformGrid>
-
-        <!-- ION Applications: tiga nilai mendatar -->
-        <HeaderedContentControl Style="{StaticResource Card}" Header="ION Applications" Margin="0,12,0,0">
-            <UniformGrid Columns="3">
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Base directory" Style="{StaticResource MutedText}"/><TextBlock x:Name="BaseDirectory" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis"/></StackPanel>
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Profile config" Style="{StaticResource MutedText}"/><TextBlock x:Name="ProfileConfig" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis"/></StackPanel>
-                <StackPanel><TextBlock Text="Last deployment" Style="{StaticResource MutedText}"/><TextBlock x:Name="LastDeployment" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis"/></StackPanel>
-            </UniformGrid>
-        </HeaderedContentControl>
 
         <HeaderedContentControl Style="{StaticResource Card}" Margin="0,12,0,0">
             <StackPanel>

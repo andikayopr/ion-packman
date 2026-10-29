@@ -1,0 +1,63 @@
+<UserControl x:Class="IonPackMan.Screens.ClientsScreen"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:IonPackMan.Controls">
+    <!-- Layar Clients (ADR-006): Client mesin ini (machine.ini) dan daftar Client beserta component yang memakai branch-nya (clients.ini). -->
+    <StackPanel>
+        <StackPanel Margin="0,0,0,12">
+            <TextBlock Text="Clients" Style="{StaticResource PageTitle}"/>
+            <TextBlock Text="A Client is a bank with its own git branches. Choose the Client of this machine and which components use the Client's branch."
+                       Style="{StaticResource PageSubtitle}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <c:Notice x:Name="ProblemNotice" Kind="Error" Visibility="Collapsed"/>
+
+        <HeaderedContentControl Style="{StaticResource Card}" Header="This machine">
+            <StackPanel>
+                <UniformGrid Columns="2">
+                    <StackPanel Margin="0,0,10,8"><TextBlock Text="Machine name" Style="{StaticResource MutedText}"/><TextBlock x:Name="MachineNameText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/></StackPanel>
+                    <StackPanel Margin="0,0,0,8"><TextBlock Text="Environment" Style="{StaticResource MutedText}"/><TextBlock x:Name="EnvironmentText" FontWeight="SemiBold"/></StackPanel>
+                    <StackPanel Margin="0,0,10,8"><TextBlock Text="Profile" Style="{StaticResource MutedText}"/><TextBlock x:Name="ProfileText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/></StackPanel>
+                    <StackPanel Margin="0,0,0,8"><TextBlock Text="Local cache" Style="{StaticResource MutedText}"/><TextBlock x:Name="CacheText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/></StackPanel>
+                </UniformGrid>
+                <TextBlock Text="Client of this machine" Style="{StaticResource FieldLabel}"/>
+                <ComboBox x:Name="MachineClientBox" Width="260" HorizontalAlignment="Left" SelectionChanged="OnMachineClientChanged"
+                          AutomationProperties.Name="Client of this machine"/>
+                <TextBlock x:Name="MachineClientHint" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+            </StackPanel>
+        </HeaderedContentControl>
+
+        <HeaderedContentControl Style="{StaticResource Card}" Header="Clients" Margin="0,12,0,0">
+            <StackPanel>
+                <TextBlock x:Name="EditNote" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
+                <DockPanel Margin="0,0,0,8">
+                    <Button x:Name="NewButton" DockPanel.Dock="Right" Content="＋ New client" Margin="8,0,0,0" Click="OnNew"/>
+                    <ComboBox x:Name="ClientPick" SelectionChanged="OnClientPicked" AutomationProperties.Name="Client"/>
+                </DockPanel>
+
+                <StackPanel x:Name="Form">
+                    <UniformGrid Columns="2">
+                        <StackPanel Margin="0,0,10,0">
+                            <TextBlock Text="Client Id" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="IdBox" AutomationProperties.Name="Client Id" ToolTip="Letters and digits, optionally separated by '-', e.g. BCA. Cannot be changed after saving."/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Name" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="NameBox" AutomationProperties.Name="Client name"/>
+                        </StackPanel>
+                    </UniformGrid>
+                    <TextBlock Text="Components that use this Client's branch" Style="{StaticResource FieldLabel}" Margin="0,10,0,2"/>
+                    <TextBlock Text="A machine with this Client deploys only the Client's build of these components. All other components use the Default build."
+                               Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                    <StackPanel x:Name="ComponentList"/>
+
+                    <c:Notice x:Name="ErrorNotice" Kind="Error" Visibility="Collapsed" Margin="0,10,0,0"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button x:Name="DeleteButton" Content="Delete client" Style="{StaticResource DangerButton}" Margin="0,0,8,0" Click="OnDelete"/>
+                        <Button x:Name="SaveButton" Content="Save client" Style="{StaticResource PrimaryButton}" Click="OnSave"/>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </HeaderedContentControl>
+    </StackPanel>
+</UserControl>

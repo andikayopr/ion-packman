@@ -47,4 +47,28 @@ public class StartupOptionsTests
         Assert.Null(options);
         Assert.False(string.IsNullOrWhiteSpace(error));
     }
+
+    [Fact]
+    public void Window_SetsTheWindowSize_AndDefaultsToNone()
+    {
+        Assert.Null(StartupOptions.Parse([]).Options!.WindowSize);
+
+        var (options, error) = StartupOptions.Parse(["--window", "1024x768"]);
+
+        Assert.Null(error);
+        Assert.Equal((1024d, 768d), options!.WindowSize);
+    }
+
+    [Theory]
+    [InlineData("1024")]
+    [InlineData("axb")]
+    [InlineData("100x100")]
+    [InlineData("1024x768x2")]
+    public void BadWindowSize_IsRejected(string size)
+    {
+        var (options, error) = StartupOptions.Parse(["--window", size]);
+
+        Assert.Null(options);
+        Assert.Contains("--window", error);
+    }
 }

@@ -134,6 +134,9 @@ public sealed class HistoryStore
         ini.Set("Execution", "Profile", Escape(r.Profile));
         ini.Set("Execution", "Component", Escape(r.Component));
         ini.Set("Execution", "BuildVersion", Escape(r.BuildVersion));
+        ini.Set("Execution", "Client", Escape(r.Client));
+        ini.Set("Execution", "GitBranch", Escape(r.GitBranch));
+        ini.Set("Execution", "GitCommit", Escape(r.GitCommit));
         ini.Set("Execution", "Operations", Escape(string.Join(",", r.Operations)));
         ini.Set("Execution", "Outcome", r.Outcome.ToString());
         ini.Set("Execution", "BackupDirectory", Escape(r.BackupDirectory));
@@ -161,7 +164,7 @@ public sealed class HistoryStore
         errors.AddRange(ini.CheckSections("Meta", "Execution", "Error"));
         errors.AddRange(ini.CheckKeys("Execution",
             required: ["Id", "StartedAt", "Operator", "Machine", "Component", "Outcome"],
-            optional: ["FinishedAt", "Profile", "BuildVersion", "Operations", "BackupDirectory"]));
+            optional: ["FinishedAt", "Profile", "BuildVersion", "Client", "GitBranch", "GitCommit", "Operations", "BackupDirectory"]));
         if (ini.HasSection("Error"))
             errors.AddRange(ini.CheckKeys("Error", required: [], optional: ["Message", "RestoreFailures"]));
         if (errors.Count > 0)
@@ -196,6 +199,9 @@ public sealed class HistoryStore
             Profile = Get("Execution", "Profile"),
             Component = Get("Execution", "Component"),
             BuildVersion = Get("Execution", "BuildVersion"),
+            Client = Get("Execution", "Client"),
+            GitBranch = Get("Execution", "GitBranch"),
+            GitCommit = Get("Execution", "GitCommit"),
             Operations = Get("Execution", "Operations").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             Outcome = Enum.Parse<HistoryOutcome>(outcomeText),
             BackupDirectory = Get("Execution", "BackupDirectory"),

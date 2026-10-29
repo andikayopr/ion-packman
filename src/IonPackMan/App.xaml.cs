@@ -38,6 +38,13 @@ public partial class App : Application
         window = new MainWindow(key => ScreenFactory.Create(key, services, text => window.ShowToast(text), k => window.Open(k)),
             hasPendingRecovery: () => services.Recovery?.HasPending() == true);
         window.SetMachine(services.Machine, services.MachineErrors);
+        if (options.WindowSize is var (width, height))
+        {
+            window.WindowState = WindowState.Normal;
+            window.Width = width;
+            window.Height = height;
+            window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        }
         window.Show();
     }
 

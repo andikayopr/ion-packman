@@ -1,4 +1,5 @@
 using System.IO;
+using IonPackMan.Deployment;
 using IonPackMan.Ini;
 
 namespace IonPackMan.Machine;
@@ -16,6 +17,8 @@ public sealed class MachineConfig
     public required string Environment { get; init; }
     /// <summary>Profile aktif: dipilih manual atau lewat pindah Profile; kosong = deteksi otomatis.</summary>
     public string Profile { get; set; } = "";
+    /// <summary>Client (bank) yang sedang dikerjakan di mesin dev, diisi manual (ADR-006); kosong = default.</summary>
+    public string Client { get; set; } = "";
     /// <summary>Path machine.ini ini dibaca; kosong bila config dibuat tanpa file (tes).</summary>
     public string SourcePath { get; init; } = "";
     public required IReadOnlyDictionary<string, string> InstallLocations { get; init; }
@@ -30,6 +33,24 @@ public sealed class MachineConfig
     /// <summary>Gating Developer Console (D6/D7). Selain "Development" — termasuk file yang tidak terbaca — berarti false.</summary>
     public bool IsDevelopment => Environment.Equals("Development", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Menyimpan Client ke machine.ini lalu memakainya (ADR-006); "" = Default. Satu-satunya jalan mengubah Client dari UI.
+    /// Mengembalikan pesan error, atau null bila tersimpan.
+    /// </summary>
+    public string? TrySetClient(string client)
+    {
+        try
+        {
+            AppIniEditor.Write(SourcePath, "Machine", "Client", client);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.ComponentModel.Win32Exception)
+        {
+            return $"Client was not saved to machine.ini: {ex.Message}";
+        }
+        Client = client;
+        return null;
+    }
+
     /// <summary>Config valid, atau null beserta daftar masalah (file hilang, rusak, atau melanggar skema).</summary>
     public static (MachineConfig? Config, List<string> Errors) Load(string path)
     {
@@ -39,7 +60,7 @@ public sealed class MachineConfig
 
         errors.AddRange(IniSchema.CheckMeta(ini));
         errors.AddRange(ini.CheckSections("Meta", "Machine", "InstallLocations", "PackMan", "SERVICE", "PROGRAM"));
-        errors.AddRange(ini.CheckKeys("Machine", required: ["MachineName", "Environment"], optional: ["Profile"]));
+        errors.AddRange(ini.CheckKeys("Machine", required: ["MachineName", "Environment"], optional: ["Profile", "Client"]));
         errors.AddRange(ini.CheckKeys("PackMan", required: ["LocalCacheDirectory"], optional: []));
         if (!ini.HasSection("InstallLocations"))
             errors.Add("missing section [InstallLocations].");
@@ -47,6 +68,10 @@ public sealed class MachineConfig
         string environment = ini.Get("Machine", "Environment") ?? "";
         if (environment.Length > 0 && !Environments.Contains(environment, StringComparer.OrdinalIgnoreCase))
             errors.Add($"[Machine] Environment '{environment}' must be one of: {string.Join(", ", Environments)}.");
+
+        string client = ini.Get("Machine", "Client") ?? "";
+        if (client.Length > 0 && !ClientConfig.IsValidId(client))
+            errors.Add($"[Machine] Client '{client}' is not a valid Client Id (letters and digits, optionally separated by '-').");
 
         foreach (var (label, serviceName) in ini.Section("SERVICE"))
             if (serviceName.Length == 0)
@@ -63,6 +88,7 @@ public sealed class MachineConfig
             MachineName = ini.Get("Machine", "MachineName")!,
             Environment = environment,
             Profile = ini.Get("Machine", "Profile") ?? "",
+            Client = client,
             SourcePath = Path.GetFullPath(path),
             InstallLocations = new Dictionary<string, string>(ini.Section("InstallLocations"), StringComparer.OrdinalIgnoreCase),
             LocalCacheDirectory = ini.Get("PackMan", "LocalCacheDirectory")!,

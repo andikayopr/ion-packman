@@ -10,9 +10,10 @@ public static class ScreenFactory
     /// <param name="open">Membuka layar menu lain dan mengembalikannya (MainWindow.Open); dipakai "Use in Developer Console".</param>
     public static FrameworkElement Create(string key, AppServices s, Action<string> toast, Func<string, FrameworkElement>? open = null) => key switch
     {
-        MainWindow.Dashboard => new DashboardScreen(s.Dashboard, s.Recovery),
+        MainWindow.Dashboard => new DashboardScreen(s.Dashboard, s.Recovery, s.Machine, s.Clients),
         MainWindow.Components => CreateComponents(s, toast, open),
         MainWindow.Profiles => CreateProfiles(s),
+        MainWindow.Clients => s.Machine is null ? Broken(MainWindow.Clients, "machine.ini", s.MachineErrors) : new ClientsScreen(s),
         MainWindow.History => CreateHistory(s),
         MainWindow.DevConsole => CreateDevConsole(s),
         _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown menu."),
@@ -23,9 +24,12 @@ public static class ScreenFactory
         if (s.AllowList is null)
             return Broken(MainWindow.Components, "allowlist.ini", s.AllowListErrors);
 
-        string? LocalBuildLabel(string id, string version) =>
-            s.Builds is not null && s.Builds.Exists(id, version) ? s.Builds.ListBuilds()
-                .FirstOrDefault(b => b.ComponentId == id && b.ReleaseVersion == version)?.Display : null;
+        // Satu release bisa punya beberapa build: default dan satu per Client.
+        string? LocalBuildLabel(string id, string version)
+        {
+            var labels = s.Builds?.ListBuilds().Where(b => b.ComponentId == id && b.ReleaseVersion == version).Select(b => b.Display).ToList();
+            return labels is { Count: > 0 } ? string.Join("; ", labels) : null;
+        }
 
         var screen = new ComponentsScreen(s.Components, s.AllowList, LocalBuildLabel);
         screen.ImportBuildRequested += release =>
@@ -42,7 +46,7 @@ public static class ScreenFactory
                 MessageBox.Show(cacheProblem, "Import local build", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            if (BuildImportFlow.Run(s.Builds, release, toast))
+            if (BuildImportFlow.Run(s.Builds, release, s.Clients, toast, s.Machine?.Client ?? ""))
                 screen.Refresh();   // kolom Local build ikut diperbarui
         };
         screen.UseInConsoleRequested += release =>
@@ -57,9 +61,11 @@ public static class ScreenFactory
     private static FrameworkElement CreateDevConsole(AppServices s) =>
         s.ConfigCatalogErrors.Count > 0
             ? Broken(MainWindow.DevConsole, "config-entries.ini", s.ConfigCatalogErrors)
+        : s.ClientErrors.Count > 0
+            ? Broken(MainWindow.DevConsole, "clients.ini or the Client in machine.ini", s.ClientErrors)
         : s.Machine is null || s.Profiles is null || s.Builds is null || s.Planner is null || s.Deployer is null || s.Backups is null
             ? Broken(MainWindow.DevConsole, s.Machine is null ? "machine.ini" : "allowlist.ini", [.. s.MachineErrors, .. s.AllowListErrors])
-            : new DevConsoleScreen(s.Machine, s.Profiles, s.Components, s.Builds, s.Planner, s.Deployer, s.Backups, s.Detector, s.Gate);
+            : new DevConsoleScreen(s.Machine, s.Profiles, s.Components, s.Builds, s.Planner, s.Deployer, s.Backups, s.Detector, s.Gate, s.Clients);
 
     private static FrameworkElement CreateProfiles(AppServices s) =>
         s.ConfigCatalogErrors.Count > 0

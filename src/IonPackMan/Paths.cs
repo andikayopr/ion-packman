@@ -21,6 +21,9 @@ public static class Paths
     /// <summary>Katalog global entri Registry/INI mesin ATM (opsional; tidak ada = kosong).</summary>
     public static string ConfigCatalogIni(string releaseDir) => Path.Combine(releaseDir, "Config", "config-entries.ini");
 
+    /// <summary>Daftar Client (bank) dan component yang memakai branch Client (opsional; tidak ada = semua default). ADR-006.</summary>
+    public static string ClientsIni(string releaseDir) => Path.Combine(releaseDir, "Config", "clients.ini");
+
     public static string ComponentsDir(string releaseDir) => Path.Combine(releaseDir, "Components");
 
     public static string CatalogIni(string releaseDir) => Path.Combine(ComponentsDir(releaseDir), "catalog.ini");
@@ -36,20 +39,21 @@ public static class Paths
     // Data operasional di local cache (D10).
     public static string BuildsDir(string cacheDir) => Path.Combine(cacheDir, "Builds");
 
-    public static string BuildDir(string cacheDir, string componentId, string releaseVersion) =>
-        Path.Combine(BuildsDir(cacheDir), $"{componentId}@{releaseVersion}");
+    /// <summary>Folder satu build: id@versi untuk default, id@versi@CLIENT untuk build branch Client (ADR-006).</summary>
+    public static string BuildDir(string cacheDir, string componentId, string releaseVersion, string client = "") =>
+        Path.Combine(BuildsDir(cacheDir), client.Length == 0 ? $"{componentId}@{releaseVersion}" : $"{componentId}@{releaseVersion}@{client}");
 
     /// <summary>Salinan file build yang diimpor (isi folder build).</summary>
-    public static string BuildFilesDir(string cacheDir, string componentId, string releaseVersion) =>
-        Path.Combine(BuildDir(cacheDir, componentId, releaseVersion), "files");
+    public static string BuildFilesDir(string cacheDir, string componentId, string releaseVersion, string client = "") =>
+        Path.Combine(BuildDir(cacheDir, componentId, releaseVersion, client), "files");
 
-    /// <summary>Metadata build (nama folder sumber, jumlah file, hash SHA-256 per file, waktu import).</summary>
-    public static string BuildIni(string cacheDir, string componentId, string releaseVersion) =>
-        Path.Combine(BuildDir(cacheDir, componentId, releaseVersion), "build.ini");
+    /// <summary>Metadata build (nama folder sumber, Client, branch dan commit git, jumlah file, waktu import).</summary>
+    public static string BuildIni(string cacheDir, string componentId, string releaseVersion, string client = "") =>
+        Path.Combine(BuildDir(cacheDir, componentId, releaseVersion, client), "build.ini");
 
     /// <summary>Daftar hash file build: satu baris per file, "&lt;sha256&gt;  &lt;path relatif&gt;".</summary>
-    public static string BuildChecksums(string cacheDir, string componentId, string releaseVersion) =>
-        Path.Combine(BuildDir(cacheDir, componentId, releaseVersion), "files.sha256");
+    public static string BuildChecksums(string cacheDir, string componentId, string releaseVersion, string client = "") =>
+        Path.Combine(BuildDir(cacheDir, componentId, releaseVersion, client), "files.sha256");
 
     public static string BackupsDir(string cacheDir) => Path.Combine(cacheDir, "Backups");
 

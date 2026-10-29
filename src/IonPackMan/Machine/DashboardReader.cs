@@ -16,7 +16,8 @@ public sealed record DashboardSnapshot(
     string ProfileText, StatusKind ProfileKind, string ProfileReason,
     string DeploymentState, StatusKind DeploymentKind,
     string BaseDirectory, string ProfileConfig, string LastDeployment,
-    List<ServiceRow> Services, List<ProcessRow> Processes);
+    List<ServiceRow> Services, List<ProcessRow> Processes,
+    string ClientText = "", IReadOnlyList<string>? ClientWarnings = null);
 
 /// <summary>Membaca kondisi mesin untuk Dashboard. Hanya membaca; tidak mengubah apa pun.</summary>
 public sealed class DashboardReader
@@ -29,11 +30,14 @@ public sealed class DashboardReader
     private readonly ProfileValidator? _validator;
     private readonly ComponentStore _components;
     private readonly HistoryStore? _history;
+    private readonly ClientConfig _clients;
 
+    /// <param name="clients">Client dan override-nya (ADR-006); null = tidak ada Client.</param>
     /// <param name="machine">null bila machine.ini tidak valid; alasannya ada di <paramref name="machineErrors"/>.</param>
     public DashboardReader(MachineConfig? machine, IReadOnlyList<string> machineErrors, MachineInspector inspector,
-        ProfileDetector? detector, ProfileStore? profiles, ProfileValidator? validator, ComponentStore components, HistoryStore? history)
+        ProfileDetector? detector, ProfileStore? profiles, ProfileValidator? validator, ComponentStore components, HistoryStore? history, ClientConfig? clients = null)
     {
+        _clients = clients ?? ClientConfig.None;
         _machine = machine;
         _machineErrors = machineErrors;
         _inspector = inspector;
@@ -60,7 +64,7 @@ public sealed class DashboardReader
             profileProblems = errors.Count > 0 ? errors : _validator?.Validate(loaded!) ?? [];
         }
 
-        var (deployText, deployKind, lastText) = ReadHistory();
+        var (deployText, deployKind, lastText, records) = ReadHistory();
         var (services, processes) = ReadServicesAndProcesses(profile);
 
         return new DashboardSnapshot(
@@ -72,7 +76,31 @@ public sealed class DashboardReader
             _machine is null ? "Unknown" : string.Join(", ", _machine.InstallLocations.Values),
             ProfileConfigText(profile, profileProblems),
             lastText,
-            services, processes);
+            services, processes,
+            _machine is null ? "" : _machine.Client.Length > 0 ? _machine.Client : "none",
+            ClientWarnings(profile, records));
+    }
+
+    // ADR-006 §5: build terakhir yang di-deploy per component harus sesuai Client mesin saat ini
+    // (mis. setelah Client= di machine.ini diganti). Hanya eksekusi yang benar-benar menyalin file build yang dihitung.
+    private List<string> ClientWarnings(Profile? profile, List<HistoryRecord> records)
+    {
+        var warnings = new List<string>();
+        if (_machine is null || profile is null)
+            return warnings;
+
+        foreach (string id in profile.Components.Select(c => c.Id).Distinct())
+        {
+            var last = records.FirstOrDefault(r => r.Component == id && r.Outcome == HistoryOutcome.Succeeded && r.Operations.Contains("DeployFiles"));
+            string expected = _clients.BuildClientFor(_machine.Client, id);
+            if (last is null || last.Client.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string source = last.GitBranch.Length > 0 ? $" (branch {last.GitBranch})" : "";
+            warnings.Add($"{id}: the last deployed build is {(last.Client.Length == 0 ? "default" : last.Client)}{source}, "
+                         + $"but this machine needs the {(expected.Length == 0 ? "default" : expected)} build. Deploy it again in the Developer Console.");
+        }
+        return warnings;
     }
 
     private string ProfileConfigText(Profile? profile, List<string> problems)
@@ -82,14 +110,15 @@ public sealed class DashboardReader
         return problems.Count == 0 ? "Valid" : $"{problems.Count} problem(s): {problems[0]}";
     }
 
-    private (string State, StatusKind Kind, string Last) ReadHistory()
+    private (string State, StatusKind Kind, string Last, List<HistoryRecord> Records) ReadHistory()
     {
         if (_history is null)
-            return ("Unknown", StatusKind.Neutral, "Not available");
+            return ("Unknown", StatusKind.Neutral, "Not available", []);
 
-        var (latest, _) = _history.GetLatest();
+        var (records, _) = _history.GetAll();
+        var latest = records.FirstOrDefault();
         if (latest is null)
-            return ("No deployments yet", StatusKind.Neutral, "Not available");
+            return ("No deployments yet", StatusKind.Neutral, "Not available", records);
 
         var kind = latest.Outcome switch
         {
@@ -98,7 +127,7 @@ public sealed class DashboardReader
             HistoryOutcome.RestoredAfterCrash => StatusKind.Info,
             _ => StatusKind.Error,
         };
-        return (latest.Outcome.ToString(), kind, $"{latest.StartedAt.LocalDateTime:yyyy-MM-dd HH:mm} · {latest.Component}");
+        return (latest.Outcome.ToString(), kind, $"{latest.StartedAt.LocalDateTime:yyyy-MM-dd HH:mm} · {latest.Component}", records);
     }
 
     private (List<ServiceRow>, List<ProcessRow>) ReadServicesAndProcesses(Profile? profile)

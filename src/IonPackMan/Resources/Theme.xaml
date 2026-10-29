@@ -353,7 +353,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type c:StatusPill}">
-                    <Border Background="{TemplateBinding Background}" CornerRadius="999" Padding="8,3">
+                    <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="8,3">
                         <TextBlock Text="{TemplateBinding Text}" Foreground="{TemplateBinding Foreground}"
                                    FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                     </Border>

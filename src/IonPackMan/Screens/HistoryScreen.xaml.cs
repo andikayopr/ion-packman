@@ -75,7 +75,7 @@ public partial class HistoryScreen : UserControl, IScreen
     }
 
     private static bool Matches(HistoryRecord r, string query) =>
-        new[] { new Row(r).Time, r.Component, r.BuildVersion, r.Outcome.ToString(), r.Operator, r.Profile, r.Machine, r.Id }
+        new[] { new Row(r).Time, r.Component, r.BuildVersion, r.Client, r.GitBranch, r.Outcome.ToString(), r.Operator, r.Profile, r.Machine, r.Id }
             .Any(text => text.Contains(query, StringComparison.OrdinalIgnoreCase));
 
     private void ShowPage()
@@ -145,6 +145,11 @@ public partial class HistoryScreen : UserControl, IScreen
         AddRow(RightColumn, "Component", r.Component);
         AddRow(RightColumn, "Profile", r.Profile);
         AddRow(RightColumn, "Build version", r.BuildVersion);
+        if (r.Operations.Contains("DeployFiles"))
+        {
+            AddRow(RightColumn, "Client", r.Client.Length > 0 ? r.Client : "Default");
+            AddRow(RightColumn, "Git source", r.GitBranch.Length + r.GitCommit.Length == 0 ? null : $"{r.GitBranch} @ {r.GitCommit}".Trim(' ', '@'));
+        }
         AddRow(RightColumn, "Operations", string.Join(", ", r.Operations));
         var pill = new StatusPill { Text = r.Outcome.ToString(), Kind = KindOf(r.Outcome) };
         RightColumn.Children.Add(new HeaderedContentControl { Style = (Style)FindResource("KeyValueRow"), Header = "Outcome", Content = pill });

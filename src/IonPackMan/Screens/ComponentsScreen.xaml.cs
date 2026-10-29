@@ -190,6 +190,18 @@ public partial class ComponentsScreen : UserControl, IScreen, IListDetailScreen
 
     private void OnNewRelease(object sender, RoutedEventArgs e) => NewRelease();
 
+    /// <summary>Mendaftarkan component baru di katalog, lalu membuka form release untuknya.</summary>
+    private void OnNewComponent(object sender, RoutedEventArgs e)
+    {
+        var dialog = new NewComponentDialog(_store) { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        Refresh();
+        OpenComponent(dialog.ComponentId);
+        Message?.Invoke($"Component {dialog.ComponentId} added to the catalog.");
+    }
+
     /// <summary>Pilih component dan muat <paramref name="version"/> (null = versi tersimpan terbaru); bila belum ada, form dikosongkan.</summary>
     public void OpenComponent(string id, string? version = null)
     {

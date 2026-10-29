@@ -20,6 +20,25 @@ public sealed class AppServices
     public List<string> AllowListErrors { get; private init; } = [];
     /// <summary>Masalah di Config\config-entries.ini; tidak kosong = layar yang memakai config (Profiles, Developer Console) tidak dibuka.</summary>
     public List<string> ConfigCatalogErrors { get; private init; } = [];
+    /// <summary>Client dan override-nya (Config\clients.ini); <see cref="ClientConfig.None"/> bila file tidak ada atau rusak.</summary>
+    public ClientConfig Clients { get; private init; } = new();
+    /// <summary>Folder rilis (tempat Config\clients.ini yang disimpan layar Clients).</summary>
+    public string ReleaseDirectory { get; private init; } = "";
+    /// <summary>Masalah saat membaca clients.ini; dikosongkan setelah layar Clients menyimpan file yang valid.</summary>
+    public List<string> ClientFileErrors { get; private init; } = [];
+    public void ClientsSaved() => ClientFileErrors.Clear();
+
+    /// <summary>Masalah di clients.ini atau Client= di machine.ini; tidak kosong = Developer Console tidak dibuka (ADR-006).</summary>
+    public List<string> ClientErrors
+    {
+        get
+        {
+            var errors = new List<string>(ClientFileErrors);
+            if (errors.Count == 0 && Machine is { Client.Length: > 0 } m && !Clients.IsKnown(m.Client))
+                errors.Add($"machine.ini [Machine] Client '{m.Client}' is not listed in {Paths.ClientsIni(ReleaseDirectory)}.");
+            return errors;
+        }
+    }
 
     public required ComponentStore Components { get; init; }
     public required MachineInspector Inspector { get; init; }
@@ -50,9 +69,15 @@ public sealed class AppServices
 
         var (configCatalog, configCatalogErrors) = ConfigCatalog.Load(Paths.ConfigCatalogIni(releaseDir));
 
+        // Satu instance dipegang semua layanan; layar Clients memperbaruinya di tempat setelah menyimpan.
+        var (loadedClients, clientErrors) = ClientConfig.Load(Paths.ClientsIni(releaseDir), components.LoadCatalog().Entries.Select(e => e.Id).ToList());
+        var clients = new ClientConfig();
+        if (loadedClients is not null)
+            clients.Replace(loadedClients);
+
         ProfileValidator? validator = allowList is null ? null : new ProfileValidator(components, allowList, configCatalog);
         ProfileStore? profiles = validator is null ? null : new ProfileStore(releaseDir, validator);
-        BuildImporter? builds = machine is null ? null : new BuildImporter(machine.LocalCacheDirectory);
+        BuildImporter? builds = machine is null ? null : new BuildImporter(machine.LocalCacheDirectory, clients: clients);
         HistoryStore? history = machine is null ? null : new HistoryStore(machine.LocalCacheDirectory);
         ProfileDetector? detector = profiles is null ? null : new ProfileDetector(components, profiles);
 
@@ -63,9 +88,9 @@ public sealed class AppServices
 
         BackupStore? backups = machine is null || allowList is null ? null : new BackupStore(machine.LocalCacheDirectory, registry, serviceControl, allowList);
         Guards? guards = machine is null || allowList is null || builds is null || backups is null ? null
-            : new Guards(machine, allowList, builds, () => PendingBackupLines(backups));
+            : new Guards(machine, allowList, builds, () => PendingBackupLines(backups), clients: clients);
         PlanBuilder? planner = machine is null || allowList is null || profiles is null || validator is null || builds is null || guards is null ? null
-            : new PlanBuilder(machine, allowList, components, profiles, validator, builds, registry, serviceControl, processControl, guards);
+            : new PlanBuilder(machine, allowList, components, profiles, validator, builds, registry, serviceControl, processControl, guards, clients);
         Deployer? deployer = machine is null || guards is null || backups is null || history is null ? null
             : new Deployer(machine, guards, backups, serviceControl, processControl, registry, history);
         var gate = new ExecutionLock();
@@ -79,6 +104,9 @@ public sealed class AppServices
             AllowList = allowList,
             AllowListErrors = allowListErrors,
             ConfigCatalogErrors = configCatalogErrors,
+            Clients = clients,
+            ClientFileErrors = clientErrors,
+            ReleaseDirectory = releaseDir,
             Components = components,
             Inspector = inspector,
             Validator = validator,
@@ -93,7 +121,7 @@ public sealed class AppServices
             Deployer = deployer,
             Switcher = switcher,
             Gate = gate,
-            Dashboard = new DashboardReader(machine, machineErrors, inspector, detector, profiles, validator, components, history),
+            Dashboard = new DashboardReader(machine, machineErrors, inspector, detector, profiles, validator, components, history, clients),
         };
     }
 

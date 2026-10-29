@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     public const string Dashboard = "dashboard";
     public const string Components = "components";
     public const string Profiles = "profiles";
+    public const string Clients = "clients";
     public const string DevConsole = "devconsole";
     public const string History = "history";
 
@@ -21,6 +22,7 @@ public partial class MainWindow : Window
         (Dashboard, "Dashboard", "▦"),
         (Components, "Components", "⚙"),
         (Profiles, "Profiles", "◈"),
+        (Clients, "Clients", "⚑"),
         (DevConsole, "Developer Console", "⌘"),
         (History, "History", "◷"),
     ];

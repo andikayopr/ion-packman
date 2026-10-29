@@ -52,6 +52,13 @@ public sealed record DeploymentPlan
     /// <summary>Folder file build di local cache (sumber copy).</summary>
     public string BuildFilesDirectory { get; init; } = "";
 
+    /// <summary>Tag Client build yang dipakai (ADR-006); kosong = default. Hanya bermakna bila <see cref="DeployFiles"/>.</summary>
+    public string BuildClient { get; init; } = "";
+
+    /// <summary>Branch dan commit git sumber build (dari build.ini); kosong bila tidak terbaca.</summary>
+    public string BuildGitBranch { get; init; } = "";
+    public string BuildGitCommit { get; init; } = "";
+
     public IReadOnlyList<PlannedFile> Files { get; init; } = [];
     public IReadOnlyList<PlannedRegistryChange> RegistryChanges { get; init; } = [];
     public IReadOnlyList<PlannedIniChange> IniChanges { get; init; } = [];

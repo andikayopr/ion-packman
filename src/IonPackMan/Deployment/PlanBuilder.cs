@@ -30,11 +30,14 @@ public sealed class PlanBuilder
     private readonly IServiceControl _services;
     private readonly IProcessControl _processes;
     private readonly Guards _guards;
+    private readonly ClientConfig _clients;
 
+    /// <param name="clients">Client dan override-nya (ADR-006); null = tidak ada Client, semua build default.</param>
     public PlanBuilder(MachineConfig machine, AllowList allowList, ComponentStore components, ProfileStore profiles,
         ProfileValidator validator, BuildImporter builds, IRegistryAccess registry, IServiceControl services,
-        IProcessControl processes, Guards guards)
+        IProcessControl processes, Guards guards, ClientConfig? clients = null)
     {
+        _clients = clients ?? ClientConfig.None;
         _processes = processes;
         _machine = machine;
         _allowList = allowList;
@@ -98,7 +101,10 @@ public sealed class PlanBuilder
             }
         }
 
-        var files = request.DeployFiles ? PlanFiles(request, release, errors) : [];
+        // Build yang boleh dipakai ditentukan Client mesin dan component (ADR-006 §4); tidak ada fallback ke default.
+        string buildClient = request.DeployFiles ? _clients.BuildClientFor(_machine.Client, release.Id) : "";
+        var files = request.DeployFiles ? PlanFiles(release, buildClient, errors) : [];
+        var buildInfo = request.DeployFiles && errors.Count == 0 ? _builds.Load(release.Id, release.ReleaseVersion, buildClient).Build : null;
         var (registry, ini) = request.ApplyConfig ? PlanConfig(profile, errors) : ([], []);
 
         if (errors.Count > 0)
@@ -120,7 +126,10 @@ public sealed class PlanBuilder
             SnapshotBytes = snapshotBytes,
             ServiceExecutable = serviceExe,
             ProgramsAtPlan = programs,
-            BuildFilesDirectory = Paths.BuildFilesDir(_machine.LocalCacheDirectory, release.Id, release.ReleaseVersion),
+            BuildFilesDirectory = Paths.BuildFilesDir(_machine.LocalCacheDirectory, release.Id, release.ReleaseVersion, buildClient),
+            BuildClient = buildClient,
+            BuildGitBranch = buildInfo?.GitBranch ?? "",
+            BuildGitCommit = buildInfo?.GitCommit ?? "",
             Files = files,
             RegistryChanges = registry,
             IniChanges = ini,
@@ -164,24 +173,27 @@ public sealed class PlanBuilder
         return (profile, release);
     }
 
-    private List<PlannedFile> PlanFiles(PlanRequest request, ComponentRelease release, List<string> errors)
+    private List<PlannedFile> PlanFiles(ComponentRelease release, string buildClient, List<string> errors)
     {
         var files = new List<PlannedFile>();
 
-        if (!_builds.Exists(release.Id, release.ReleaseVersion))
+        if (!_builds.Exists(release.Id, release.ReleaseVersion, buildClient))
         {
-            errors.Add($"No imported build for {release.Id}@{release.ReleaseVersion}. Import it in Components first.");
+            string label = BuildImporter.Label(release.Id, release.ReleaseVersion, buildClient);
+            errors.Add(buildClient.Length == 0
+                ? $"No imported build for {label}. Import it in Components first."
+                : $"No imported build for {label}. Client {buildClient} uses its own branch of {release.Id}, so a default build is not accepted; import it in Components as a {buildClient} build.");
             return files;
         }
 
-        var (checksums, checksumErrors) = _builds.ReadChecksums(release.Id, release.ReleaseVersion);
+        var (checksums, checksumErrors) = _builds.ReadChecksums(release.Id, release.ReleaseVersion, buildClient);
         if (checksums is null)
         {
             errors.AddRange(checksumErrors);
             return files;
         }
 
-        string buildDir = Paths.BuildFilesDir(_machine.LocalCacheDirectory, release.Id, release.ReleaseVersion);
+        string buildDir = Paths.BuildFilesDir(_machine.LocalCacheDirectory, release.Id, release.ReleaseVersion, buildClient);
         string targetRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(release.TargetDirectory));
 
         foreach (var (relative, hash) in checksums.OrderBy(kv => kv.Key, StringComparer.Ordinal))
