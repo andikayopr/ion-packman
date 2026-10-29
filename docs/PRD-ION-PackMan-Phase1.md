@@ -6,7 +6,7 @@
 | **Fase** | Tahap 1 (MVP Developer/Integration) — **menu Release (Package Builder & Deploy) di luar scope** |
 | **Sumber** | Prototype UI `ion_packman_release_devconsole.html` (mock data, simulasi) |
 | **Platform target** | Aplikasi desktop .NET, berjalan lokal di mesin Windows 10 IoT (ATM/CRM) |
-| **Status** | Draft v5 — diselaraskan dengan [System Design versi sederhana](docs/System-Design-ION-PackMan-Phase1.md), ADR-001…005, dan [UI/UX Spec](docs/UI-UX-Spec-ION-PackMan-Phase1.md) |
+| **Status** | Draft v5 — diselaraskan dengan [System Design versi sederhana](System-Design-ION-PackMan-Phase1.md), ADR-001…005, dan [UI/UX Spec](UI-UX-Spec-ION-PackMan-Phase1.md) |
 | **Tanggal** | 28 Oktober 2026 |
 
 ---
