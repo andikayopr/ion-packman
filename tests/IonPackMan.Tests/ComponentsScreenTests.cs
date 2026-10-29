@@ -156,6 +156,28 @@ public class ComponentsScreenTests : IDisposable
     }
 
     [Fact]
+    public void LeftoverReleaseFiles_AreNeverListed_AndAWarningNamesThem()
+    {
+        // Sisa dari sebelum aturan satu release: dua file untuk satu component.
+        Rel("wind", "WIND", "2.1.0-dev", @"D:\APCONTAINER\WIND", "WIND").ToIni().Save(Paths.ComponentIni(_dir, "wind", "2.1.0-dev"));
+        WpfHost.Run(() =>
+        {
+            var s = NewScreen();
+            Assert.Equal("WIND (wind) | 2.1.0 | wind-build · 12 files", Row(s, 1));   // satu versi di daftar, bukan "2.1.0, 2.1.0-dev"
+
+            var notice = Find<Notice>(s, "CatalogNotice");
+            Assert.Equal(Visibility.Visible, notice.Visibility);
+            Assert.Equal(StatusKind.Warning, notice.Kind);
+            Assert.Contains(NoticeLines(notice), l => l.Contains("wind") && l.Contains("2.1.0-dev") && l.Contains("ignored"));
+
+            Choose(s, "wind");
+            Click(Find<Button>(s, "SaveButton"));   // menyimpan component membersihkannya
+            Assert.Equal(Visibility.Collapsed, Find<Notice>(s, "CatalogNotice").Visibility);
+        });
+        Assert.False(File.Exists(Paths.ComponentIni(_dir, "wind", "2.1.0-dev")));
+    }
+
+    [Fact]
     public void ChoosingAComponent_LoadsItsOnlyRelease_AndSavingAnotherVersionReplacesIt()
     {
         WpfHost.Run(() =>

@@ -216,7 +216,7 @@ public class ComponentStoreTests : IDisposable
     // ---------- ListVersions ----------
 
     [Fact]
-    public void ListVersions_NewestFirst_NumericAware_IgnoresOtherFiles()
+    public void ListVersions_IsOnlyTheNewest_NumericAware_OtherReleaseFilesAreIgnored_AndRemovedBySave()
     {
         // Store menyimpan satu release per component; beberapa versi hanya ada bila folder rilis diubah manual.
         foreach (var v in new[] { "2.9.0", "2.10.0", "2.1.0", "2.10.0-dev.1", "1.0.0" })
@@ -224,7 +224,19 @@ public class ComponentStoreTests : IDisposable
         File.WriteAllText(Path.Combine(_dir, "Components", "wind", "notes.txt"), "x");
         File.WriteAllText(Path.Combine(_dir, "Components", "wind", "wind-bad name.ini"), "x");
 
-        Assert.Equal(new[] { "2.10.0", "2.10.0-dev.1", "2.9.0", "2.1.0", "1.0.0" }, _store.ListVersions("wind"));
+        Assert.Equal(new[] { "2.10.0" }, _store.ListVersions("wind"));
+        Assert.Equal(new[] { "2.10.0-dev.1", "2.9.0", "2.1.0", "1.0.0" }, _store.IgnoredVersions("wind"));
+
+        // Release yang diabaikan tidak bisa dipakai (dibaca) di mana pun.
+        var (release, errors) = _store.Load("wind", "2.9.0");
+        Assert.Null(release);
+        Assert.Contains("is not the release in use", errors[0]);
+        Assert.NotNull(_store.Load("wind", "2.10.0").Release);
+
+        // Menyimpan component membersihkan sisanya.
+        Assert.Empty(_store.Save(Wind("2.10.0")));
+        Assert.Empty(_store.IgnoredVersions("wind"));
+        Assert.Equal(new[] { "2.10.0" }, _store.ListVersions("wind"));
     }
 
     [Fact]

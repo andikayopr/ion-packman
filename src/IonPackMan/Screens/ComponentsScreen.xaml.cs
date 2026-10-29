@@ -61,7 +61,13 @@ public partial class ComponentsScreen : UserControl, IScreen
         }
         else
         {
-            CatalogNotice.Visibility = Visibility.Collapsed;
+            // Sisa file dari sebelum aturan satu release: tidak dipakai di mana pun, tapi pengguna harus tahu dan bisa membereskannya.
+            var ignored = _entries.Select(e => (e.Id, Versions: _store.IgnoredVersions(e.Id))).Where(x => x.Versions.Count > 0).ToList();
+            if (ignored.Count == 0)
+                CatalogNotice.Visibility = Visibility.Collapsed;
+            else
+                Show(CatalogNotice, StatusKind.Warning, ignored.Select(x => $"{x.Id}: release file {string.Join(", ", x.Versions)} is ignored because a newer release exists. Save the component to remove it.")
+                    .Prepend("A component can have only one release."));
         }
 
         _rows = _entries.Select(BuildRow).ToList();

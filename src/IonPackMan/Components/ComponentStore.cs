@@ -38,8 +38,17 @@ public sealed class ComponentStore
         return (entries, []);
     }
 
-    /// <summary>Versi yang tersimpan untuk satu component, terbaru dulu. Normalnya satu; lebih dari satu hanya bila folder rilis diubah manual.</summary>
-    public List<string> ListVersions(string componentId)
+    /// <summary>
+    /// Satu component = satu release: versi yang berlaku (yang terbaru) atau kosong. Bila folder rilis berisi file versi lain
+    /// (diubah manual atau sisa dari sebelum aturan ini), file itu diabaikan di mana pun (lihat <see cref="IgnoredVersions"/>)
+    /// dan dihapus saat component disimpan.
+    /// </summary>
+    public List<string> ListVersions(string componentId) => AllVersions(componentId).Take(1).ToList();
+
+    /// <summary>File release lain milik component ini yang diabaikan karena sudah ada versi yang lebih baru.</summary>
+    public List<string> IgnoredVersions(string componentId) => AllVersions(componentId).Skip(1).ToList();
+
+    private List<string> AllVersions(string componentId)
     {
         string dir = Path.Combine(Paths.ComponentsDir(_releaseDir), componentId);
         if (!ComponentRelease.IsValidId(componentId) || !Directory.Exists(dir))
@@ -59,6 +68,9 @@ public sealed class ComponentStore
     {
         if (!ComponentRelease.IsValidId(componentId) || !ComponentRelease.IsValidVersion(releaseVersion))
             return (null, [$"'{componentId}@{releaseVersion}' is not a valid component release."]);
+
+        if (IgnoredVersions(componentId).Contains(releaseVersion))
+            return (null, [$"{componentId}@{releaseVersion} is not the release in use: {componentId}@{ListVersions(componentId)[0]} replaces it."]);
 
         string path = Paths.ComponentIni(_releaseDir, componentId, releaseVersion);
         var (release, errors) = ComponentRelease.LoadFile(path);
@@ -95,7 +107,7 @@ public sealed class ComponentStore
         }
 
         var removeProblems = new List<string>();
-        foreach (string other in ListVersions(release.Id).Where(v => v != release.ReleaseVersion))
+        foreach (string other in AllVersions(release.Id).Where(v => v != release.ReleaseVersion))
         {
             try
             {
