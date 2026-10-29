@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Referensi** | [PRD-ION-PackMan-Phase1.md](../PRD-ION-PackMan-Phase1.md), keputusan D1–D12 |
-| **Keputusan arsitektur** | [ADR-001](adr/ADR-001-process-model.md) · [ADR-002](adr/ADR-002-runtime-ui.md) · [ADR-003](adr/ADR-003-ini-engine.md) · [ADR-004](adr/ADR-004-crash-safe-execution.md) · [ADR-005](adr/ADR-005-history-storage.md) |
+| **Keputusan arsitektur** | [ADR-001](adr/ADR-001-process-model.md) · [ADR-002](adr/ADR-002-runtime-ui.md) · [ADR-003](adr/ADR-003-ini-engine.md) · [ADR-004](adr/ADR-004-crash-safe-execution.md) · [ADR-005](adr/ADR-005-history-storage.md) · [ADR-006](adr/ADR-006-multi-client-builds.md) |
 | **Status** | Proposed — v2 (disederhanakan) |
 | **Tanggal** | 28 Oktober 2026 |
 
