@@ -39,6 +39,17 @@ public sealed class FakeServiceControl : IServiceControl
         return _states.TryGetValue(serviceName, out var s) ? s : ServiceState.NotFound;
     }
 
+    private readonly Dictionary<string, string> _executables = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Path exe service; default kosong (= tidak terbaca).</summary>
+    public FakeServiceControl WithExecutable(string name, string path)
+    {
+        _executables[name] = path;
+        return this;
+    }
+
+    public string GetExecutablePath(string serviceName) => _executables.GetValueOrDefault(serviceName, "");
+
     public void Stop(string serviceName, TimeSpan timeout)
     {
         Record("Stop", serviceName);

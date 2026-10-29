@@ -116,6 +116,10 @@ public sealed class BackupStore
                 }
             }
 
+            // Snapshot seluruh folder (opsional) juga sebelum backup.ini: snapshot gagal = eksekusi dibatalkan sebelum mesin disentuh.
+            if (plan.SnapshotFolder)
+                FolderCopy.Copy(plan.TargetDirectory, Paths.SnapshotDir(backupDir));
+
             // backup.ini ditulis TERAKHIR (atomik lewat IniFile): ada backup.ini berarti semua salinan sudah terverifikasi.
             string iniPath = Path.Combine(backupDir, BackupFileName);
             ToIni(backup).Save(iniPath);

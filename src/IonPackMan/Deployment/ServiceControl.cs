@@ -26,6 +26,12 @@ public sealed class ServiceControl : IServiceControl
         }
     }
 
+    public string GetExecutablePath(string serviceName)
+    {
+        RequireName(serviceName);
+        return Machine.MachineInspector.ReadImagePath(serviceName);
+    }
+
     public void Stop(string serviceName, TimeSpan timeout)
     {
         using var sc = Open(serviceName);

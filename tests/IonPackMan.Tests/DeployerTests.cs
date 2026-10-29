@@ -42,7 +42,7 @@ public class DeployerTests
         var backups = new BackupStore(env.Cache, env.Registry, env.Services, env.Allow);
         tweak?.Invoke(backups);
         var history = new HistoryStore(env.Cache);
-        var deployer = new Deployer(env.Machine, env.Guards, backups, env.Services, env.Registry, history, TimeSpan.FromSeconds(1));
+        var deployer = new Deployer(env.Machine, env.Guards, backups, env.Services, env.Processes, env.Registry, history, TimeSpan.FromSeconds(1));
         return new Rig { Env = env, Backups = backups, History = history, Deployer = deployer, Plan = plan };
     }
 
@@ -143,7 +143,7 @@ public class DeployerTests
         var rig = Prepare(env);
         var before = StateOf(env);
         var prod = new Guards(env.MachineWith("Production", env.Cache), env.Allow, env.Builds, () => [], _ => long.MaxValue / 2);
-        var deployer = new Deployer(env.MachineWith("Production", env.Cache), prod, rig.Backups, env.Services, env.Registry, rig.History);
+        var deployer = new Deployer(env.MachineWith("Production", env.Cache), prod, rig.Backups, env.Services, env.Processes, env.Registry, rig.History);
 
         var result = deployer.Run(rig.Plan);
 
@@ -321,6 +321,132 @@ public class DeployerTests
         AssertSame(before, StateOf(env));
         Assert.Equal(ServiceState.Stopped, env.Services.GetState("WIND"));
         Assert.DoesNotContain(env.Services.Calls, c => c.StartsWith("Start"));
+    }
+
+    // ---------- Snapshot seluruh folder ----------
+
+    private static PlanRequest WithSnapshot() => TestDeployEnvironment.All() with { SnapshotFolder = true };
+
+    [Fact]
+    public void Snapshot_CopiesTheWholeFolderBeforeThePatch_AndKeepsItAfterSuccess()
+    {
+        using var env = new TestDeployEnvironment();
+        Directory.CreateDirectory(Path.Combine(env.Target, "logs"));
+        File.WriteAllText(Path.Combine(env.Target, "logs", "app.log"), "log");
+        var rig = Prepare(env, WithSnapshot());
+
+        var result = rig.Deployer.Run(rig.Plan);
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        string snapshot = Paths.SnapshotDir(result.BackupDirectory);
+        Assert.Equal("old-exe", File.ReadAllText(Path.Combine(snapshot, "WIND.exe")));        // isi sebelum patch
+        Assert.Equal("keep", File.ReadAllText(Path.Combine(snapshot, "keep.txt")));           // file di luar build ikut tersalin
+        Assert.Equal("log", File.ReadAllText(Path.Combine(snapshot, "logs", "app.log")));
+        Assert.Equal("new-exe", File.ReadAllText(Path.Combine(env.Target, "WIND.exe")));
+        Assert.Contains("SnapshotFolder", rig.Plan.OperationNames);
+    }
+
+    [Fact]
+    public void Snapshot_ThatCannotBeTaken_CancelsExecutionBeforeAnythingChanges()
+    {
+        using var env = new TestDeployEnvironment();
+        var rig = Prepare(env, WithSnapshot());
+        var before = StateOf(env);
+
+        using (new FileStream(Path.Combine(env.Target, "keep.txt"), FileMode.Open, FileAccess.Read, FileShare.None))   // dikunci eksklusif
+        {
+            var result = rig.Deployer.Run(rig.Plan);
+
+            Assert.Equal(HistoryOutcome.Rejected, result.Outcome);
+            Assert.DoesNotContain(env.Services.Calls, c => c.StartsWith("Stop"));
+        }
+        AssertSame(before, StateOf(env));
+        Assert.False(Directory.Exists(Paths.BackupDir(env.Cache, rig.Plan.ExecId)));   // backup setengah jadi dibersihkan
+    }
+
+    [Fact]
+    public void WithoutSnapshotOption_NoSnapshotFolderIsCreated()
+    {
+        using var env = new TestDeployEnvironment();
+        var rig = Prepare(env);
+
+        var result = rig.Deployer.Run(rig.Plan);
+
+        Assert.True(result.Succeeded);
+        Assert.False(Directory.Exists(Paths.SnapshotDir(result.BackupDirectory)));
+    }
+
+    // ---------- Component tanpa service: program biasa ----------
+
+    // ion-middleware tidak punya service; IonMiddleware.exe "berjalan" dari folder targetnya.
+    private static Rig PrepareProgram(TestDeployEnvironment env, out string target, out string exe)
+    {
+        var (build, errors) = env.Builds.Import("ion-middleware", "1.8.2", env.SourceBuild);
+        Assert.True(build is not null, string.Join("; ", errors));
+        target = Path.Combine(env.Apps, "Mw");
+        Directory.CreateDirectory(target);
+        exe = Path.Combine(target, "IonMiddleware.exe");
+        env.Processes.Run(exe);
+        return Prepare(env, new("TESTP", "ion-middleware", "1.8.2", DeployFiles: true, ApplyConfig: false, RestartService: false));
+    }
+
+    [Fact]
+    public void ProgramWithoutService_IsStoppedBeforeCopy_AndStartedAgainAfter()
+    {
+        using var env = new TestDeployEnvironment();
+        var rig = PrepareProgram(env, out var target, out var exe);
+        var steps = new List<DeployStep>();
+
+        var result = rig.Deployer.Run(rig.Plan, new SyncProgress(steps.Add));
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        Assert.Equal(new[] { $"Stop:{target}", $"Start:{exe}" }, env.Processes.Calls);
+        Assert.Equal([exe], env.Processes.FindExecutablesUnder(target));
+        Assert.Equal("new-exe", File.ReadAllText(Path.Combine(target, "WIND.exe")));
+        Assert.Equal(new[] { DeployStep.Checking, DeployStep.BackingUp, DeployStep.StoppingService, DeployStep.CopyingFiles,
+                             DeployStep.StartingService, DeployStep.Finalizing }, steps);
+    }
+
+    [Fact]
+    public void ProgramWithoutService_FailedCopy_RestoresFilesAndStartsTheProgramAgain()
+    {
+        using var env = new TestDeployEnvironment();
+        var rig = PrepareProgram(env, out var target, out var exe);
+        File.WriteAllText(Path.Combine(target, "lib"), "i am a file");   // paksa gagal di tengah copy
+
+        var result = rig.Deployer.Run(rig.Plan);
+
+        Assert.Equal(HistoryOutcome.FailedRestored, result.Outcome);
+        Assert.Equal(new[] { $"Stop:{target}", $"Start:{exe}" }, env.Processes.Calls);
+        Assert.Equal([exe], env.Processes.FindExecutablesUnder(target));
+    }
+
+    [Fact]
+    public void ProgramWithoutService_CannotStartAgainAfterRestore_ReportsIt()
+    {
+        using var env = new TestDeployEnvironment();
+        var rig = PrepareProgram(env, out _, out _);
+        env.Processes.FailOn("Start", new InvalidOperationException("cannot launch"));
+
+        var result = rig.Deployer.Run(rig.Plan);
+
+        Assert.Equal(HistoryOutcome.FailedRestored, result.Outcome);
+        Assert.Contains("cannot launch", result.Errors[0]);
+        Assert.Contains("could not be started again", result.Errors[1]);
+    }
+
+    [Fact]
+    public void ProgramWithoutService_NothingRunning_JustCopiesFiles()
+    {
+        using var env = new TestDeployEnvironment();
+        var (build, _) = env.Builds.Import("ion-middleware", "1.8.2", env.SourceBuild);
+        Assert.NotNull(build);
+        var rig = Prepare(env, new("TESTP", "ion-middleware", "1.8.2", DeployFiles: true, ApplyConfig: false, RestartService: false));
+
+        var result = rig.Deployer.Run(rig.Plan);
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        Assert.Empty(env.Processes.Calls);
     }
 
     [Fact]

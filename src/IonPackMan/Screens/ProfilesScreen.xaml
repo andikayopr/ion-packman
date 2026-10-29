@@ -244,12 +244,12 @@
                                         </DataGridTemplateColumn>
                                     </DataGrid.Columns>
                                 </DataGrid>
-                                <TextBlock x:Name="NoConfig" Text="This profile has no Registry or INI entries." Style="{StaticResource MutedText}"
+                                <TextBlock x:Name="NoConfig" Text="No Registry or INI entries are defined. Add them to Config\config-entries.ini (machine-wide) or to this profile's file." Style="{StaticResource MutedText}"
                                            Margin="11,12" Visibility="Collapsed"/>
                             </StackPanel>
                         </Border>
                         <TextBlock Style="{StaticResource MutedText}" Margin="0,8,0,0" TextWrapping="Wrap"
-                                   Text="Entries come from the profile file. Only features can be toggled here; entries outside the allow-list (✖) make the profile invalid."/>
+                                   Text="Entries come from the machine-wide Config\config-entries.ini plus any in the profile file. Only features can be toggled here; entries outside the allow-list (✖) make the profile invalid."/>
                     </StackPanel>
                 </TabItem>
 

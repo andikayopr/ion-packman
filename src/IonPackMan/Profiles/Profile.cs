@@ -13,6 +13,8 @@ public sealed record IniEntry(string Name, string File, string Section, string K
 /// <summary>
 /// Komposisi sebuah Profile (PRD R6–R7): versi component yang exact, dependency, fitur, dan entri Registry/INI.
 /// Disimpan sebagai Profiles\&lt;Id&gt;.ini. Satu mesin memakai satu Profile.
+/// <see cref="RegistryEntries"/>/<see cref="IniEntries"/> adalah entri KHUSUS profile ini (opsional). Config yang melekat di
+/// mesin ATM didefinisikan sekali di <see cref="ConfigCatalog"/>; gabungan keduanya: <see cref="ConfigCatalog.EntriesFor"/>.
 /// Aturan kebenaran (R8) ada di <see cref="ProfileValidator"/>; di sini hanya membaca dan menulis.
 /// </summary>
 public sealed record Profile
@@ -74,17 +76,9 @@ public sealed record Profile
                 components.Add(new ProfileComponent(id, ini.Get(section, "Version") ?? "", SplitList(ini.Get(section, "DependsOn"))));
             }
             else if (TrySplit(section, "Registry:", out string regName))
-            {
-                errors.AddRange(ini.CheckKeys(section, required: ["Key", "ValueName", "Type"], optional: ["Value", "Feature"]));
-                registry.Add(new RegistryEntry(regName, ini.Get(section, "Key") ?? "", ini.Get(section, "ValueName") ?? "",
-                    ini.Get(section, "Type") ?? "", ini.Get(section, "Value") ?? "", ini.Get(section, "Feature") ?? ""));
-            }
+                registry.Add(ReadRegistryEntry(ini, section, regName, errors));
             else if (TrySplit(section, "Ini:", out string iniName))
-            {
-                errors.AddRange(ini.CheckKeys(section, required: ["File", "Section", "Key"], optional: ["Value", "Feature"]));
-                iniEntries.Add(new IniEntry(iniName, ini.Get(section, "File") ?? "", ini.Get(section, "Section") ?? "",
-                    ini.Get(section, "Key") ?? "", ini.Get(section, "Value") ?? "", ini.Get(section, "Feature") ?? ""));
-            }
+                iniEntries.Add(ReadIniEntry(ini, section, iniName, errors));
         }
 
         if (errors.Count > 0)
@@ -142,7 +136,22 @@ public sealed record Profile
         return ini;
     }
 
-    private static bool TrySplit(string section, string prefix, out string name)
+    // Dipakai juga oleh ConfigCatalog: entri di katalog global punya bentuk yang sama dengan entri di file Profile.
+    internal static RegistryEntry ReadRegistryEntry(IniFile ini, string section, string name, List<string> errors)
+    {
+        errors.AddRange(ini.CheckKeys(section, required: ["Key", "ValueName", "Type"], optional: ["Value", "Feature"]));
+        return new RegistryEntry(name, ini.Get(section, "Key") ?? "", ini.Get(section, "ValueName") ?? "",
+            ini.Get(section, "Type") ?? "", ini.Get(section, "Value") ?? "", ini.Get(section, "Feature") ?? "");
+    }
+
+    internal static IniEntry ReadIniEntry(IniFile ini, string section, string name, List<string> errors)
+    {
+        errors.AddRange(ini.CheckKeys(section, required: ["File", "Section", "Key"], optional: ["Value", "Feature"]));
+        return new IniEntry(name, ini.Get(section, "File") ?? "", ini.Get(section, "Section") ?? "",
+            ini.Get(section, "Key") ?? "", ini.Get(section, "Value") ?? "", ini.Get(section, "Feature") ?? "");
+    }
+
+    internal static bool TrySplit(string section, string prefix, out string name)
     {
         bool match = section.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
         name = match ? section[prefix.Length..] : "";

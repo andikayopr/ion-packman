@@ -13,6 +13,9 @@ public interface IServiceControl
     /// <exception cref="ArgumentException">Nama null/kosong/spasi.</exception>
     ServiceState GetState(string serviceName);
 
+    /// <summary>Path exe yang dijalankan service (hanya dibaca, tidak pernah diubah); kosong bila tidak diketahui.</summary>
+    string GetExecutablePath(string serviceName);
+
     /// <summary>Stop lalu tunggu Stopped. Tidak error bila sudah Stopped.</summary>
     /// <exception cref="InvalidOperationException">Service tidak ada.</exception>
     /// <exception cref="TimeoutException">Belum Stopped dalam <paramref name="timeout"/>.</exception>

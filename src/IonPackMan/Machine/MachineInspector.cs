@@ -145,7 +145,8 @@ public sealed class MachineInspector
         catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { return "Unknown"; }
     }
 
-    private static string ReadImagePath(string serviceName)
+    /// <summary>Path exe service dari ImagePath di Registry; kosong bila service tidak ada atau tidak terbaca.</summary>
+    public static string ReadImagePath(string serviceName)
     {
         try
         {

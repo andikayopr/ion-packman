@@ -18,6 +18,9 @@ public static class Paths
 
     public static string AllowListIni(string releaseDir) => Path.Combine(releaseDir, "Config", "allowlist.ini");
 
+    /// <summary>Katalog global entri Registry/INI mesin ATM (opsional; tidak ada = kosong).</summary>
+    public static string ConfigCatalogIni(string releaseDir) => Path.Combine(releaseDir, "Config", "config-entries.ini");
+
     public static string ComponentsDir(string releaseDir) => Path.Combine(releaseDir, "Components");
 
     public static string CatalogIni(string releaseDir) => Path.Combine(ComponentsDir(releaseDir), "catalog.ini");
@@ -51,6 +54,9 @@ public static class Paths
     public static string BackupsDir(string cacheDir) => Path.Combine(cacheDir, "Backups");
 
     public static string BackupDir(string cacheDir, string execId) => Path.Combine(BackupsDir(cacheDir), execId);
+
+    /// <summary>Salinan seluruh folder target sebelum patch (opsional); bagian dari folder backup eksekusi itu.</summary>
+    public static string SnapshotDir(string backupDir) => Path.Combine(backupDir, "snapshot");
 
     public static string HistoryDir(string cacheDir) => Path.Combine(cacheDir, "History");
 

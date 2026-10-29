@@ -135,7 +135,11 @@
                         <HeaderedContentControl Grid.Column="2" Style="{StaticResource Card}" Header="2. Operations">
                             <StackPanel>
                                 <CheckBox x:Name="DeployBox" Content="Deploy files" IsChecked="True" Checked="OnOperationChanged" Unchecked="OnOperationChanged"/>
-                                <TextBlock Text="A running service is stopped and started automatically" Style="{StaticResource FieldHint}" Margin="22,-2,0,8"/>
+                                <CheckBox x:Name="SnapshotBox" Content="Snapshot the whole folder first" Margin="22,4,0,0"
+                                          IsEnabled="{Binding IsChecked, ElementName=DeployBox}"
+                                          Checked="OnOperationChanged" Unchecked="OnOperationChanged"/>
+                                <TextBlock Text="Copies the entire target directory into the backup folder. Needs free disk space and can take a while." Style="{StaticResource FieldHint}" Margin="44,-2,0,4" TextWrapping="Wrap"/>
+                                <TextBlock Text="A running service or program is stopped and started automatically" Style="{StaticResource FieldHint}" Margin="22,-2,0,8"/>
                                 <CheckBox x:Name="ConfigBox" Content="Apply config (Registry/INI)" Margin="0,4" Checked="OnOperationChanged" Unchecked="OnOperationChanged"/>
                                 <CheckBox x:Name="RestartBox" Content="Restart service" Margin="0,4" Checked="OnOperationChanged" Unchecked="OnOperationChanged"/>
                                 <TextBlock Text="Nothing runs until you press Execute. Changing any choice clears the preview."
@@ -201,6 +205,8 @@
                 Background="{StaticResource Brush.Panel}" BorderBrush="{StaticResource Brush.Line}" BorderThickness="1">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button x:Name="SwitchButton" Content="Preview switch" Margin="0,0,8,0" Click="OnPreviewSwitchClick"
+                            ToolTip="Whole profile: deploy components that are not installed, apply config and start those that are"/>
                     <Button x:Name="PreviewButton" Content="Preview plan" Margin="0,0,8,0" Click="OnPreviewClick"/>
                     <Button x:Name="ExecuteButton" Content="Execute" Style="{StaticResource PrimaryButton}" Click="OnExecuteClick"/>
                 </StackPanel>

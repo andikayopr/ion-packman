@@ -31,6 +31,24 @@ public sealed record DeploymentPlan
     /// <summary>Status service saat plan disusun; menentukan perlu tidaknya Stop/Start otomatis.</summary>
     public ServiceState ServiceStateAtPlan { get; init; } = ServiceState.NotFound;
 
+    /// <summary>
+    /// Salin seluruh <see cref="TargetDirectory"/> ke folder backup sebelum file diganti. Hanya salinan untuk dibuka manual;
+    /// pemulihan otomatis tetap memakai catatan backup biasa. Hanya berlaku bila <see cref="DeployFiles"/>.
+    /// </summary>
+    public bool SnapshotFolder { get; init; }
+
+    /// <summary>Ukuran isi target saat plan disusun; dasar pemeriksaan ruang disk untuk snapshot.</summary>
+    public long SnapshotBytes { get; init; }
+
+    /// <summary>Path exe yang dijalankan service saat plan disusun; kosong = tidak terbaca (hanya jadi peringatan).</summary>
+    public string ServiceExecutable { get; init; } = "";
+
+    /// <summary>
+    /// Path exe program yang berjalan dari <see cref="TargetDirectory"/> saat plan disusun. Hanya diisi untuk component
+    /// tanpa service (program biasa); kosong = tidak ada yang perlu dihentikan.
+    /// </summary>
+    public IReadOnlyList<string> ProgramsAtPlan { get; init; } = [];
+
     /// <summary>Folder file build di local cache (sumber copy).</summary>
     public string BuildFilesDirectory { get; init; } = "";
 
@@ -45,8 +63,11 @@ public sealed record DeploymentPlan
     /// <summary>Service dinyalakan lagi bila tadi dihentikan, atau bila Restart service dipilih.</summary>
     public bool StartServiceAfter => ServiceName.Length > 0 && (StopServiceBefore || RestartService);
 
-    /// <summary>Nama operasi untuk History: DeployFiles, ApplyConfig, RestartService.</summary>
+    /// <summary>Program biasa yang sedang berjalan ditutup sebelum copy lalu dijalankan lagi sesudahnya (analog Stop/Start service).</summary>
+    public bool RestartsPrograms => ServiceName.Length == 0 && ProgramsAtPlan.Count > 0 && (DeployFiles || RestartService);
+
+    /// <summary>Nama operasi untuk History: DeployFiles, SnapshotFolder, ApplyConfig, RestartService.</summary>
     public IReadOnlyList<string> OperationNames =>
-        new[] { DeployFiles ? "DeployFiles" : null, ApplyConfig ? "ApplyConfig" : null, RestartService ? "RestartService" : null }
+        new[] { DeployFiles ? "DeployFiles" : null, SnapshotFolder ? "SnapshotFolder" : null, ApplyConfig ? "ApplyConfig" : null, RestartService ? "RestartService" : null }
             .OfType<string>().ToList();
 }

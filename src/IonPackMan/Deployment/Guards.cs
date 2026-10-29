@@ -106,7 +106,8 @@ public sealed class Guards
         if (!plan.DeployFiles)
             return;
 
-        long backupBytes = plan.Files.Where(f => f.Change == FileChange.Replace).Sum(f => f.Size);
+        long backupBytes = plan.Files.Where(f => f.Change == FileChange.Replace).Sum(f => f.Size)
+                           + (plan.SnapshotFolder ? plan.SnapshotBytes : 0);
         long copyBytes = plan.Files.Where(f => f.Change != FileChange.Same).Sum(f => f.Size);
 
         TryCheck(_machine.LocalCacheDirectory, backupBytes, "backup", problems);

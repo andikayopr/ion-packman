@@ -18,11 +18,18 @@ public sealed class ProfileValidator
     private readonly ComponentStore _components;
     private readonly AllowList _allowList;
 
-    public ProfileValidator(ComponentStore components, AllowList allowList)
+    /// <summary>Entri Registry/INI global mesin ATM; berlaku untuk semua profile bersama entri khusus profile.</summary>
+    public ConfigCatalog Catalog { get; }
+
+    public ProfileValidator(ComponentStore components, AllowList allowList, ConfigCatalog? catalog = null)
     {
         _components = components;
         _allowList = allowList;
+        Catalog = catalog ?? ConfigCatalog.Empty;
     }
+
+    /// <summary>Entri Registry/INI yang berlaku untuk profile (katalog + entri profile), lengkap dengan hasil allow-list.</summary>
+    public List<ResolvedEntry> Resolve(Profile p) => ConfigResolver.Resolve(p, _allowList, Catalog);
 
     public static bool IsValidProfileId(string id) => IdPattern.IsMatch(id);
 
@@ -39,10 +46,10 @@ public sealed class ProfileValidator
 
         CheckComponents(p, problems);
         CheckFeatures(p, problems);
-        CheckEntries(p, problems);
+        CheckEntries(p.RegistryEntries, p.IniEntries, problems);
 
-        // Semua entri yang dideklarasikan harus diizinkan, termasuk yang saat ini belum berlaku (fitur mati).
-        problems.AddRange(ConfigResolver.Resolve(p, _allowList)
+        // Semua entri yang dideklarasikan (katalog + profile) harus diizinkan, termasuk yang saat ini belum berlaku (fitur mati).
+        problems.AddRange(Resolve(p)
             .Where(e => e.AllowListProblem is not null)
             .Select(e => $"{e.Scope}:{e.Name}: {e.AllowListProblem}"));
         return problems;
@@ -127,9 +134,9 @@ public sealed class ProfileValidator
     }
 
     // Bentuk entri saja; izin (allow-list) diperiksa di Validate lewat ConfigResolver.
-    private static void CheckEntries(Profile p, List<string> problems)
+    public static void CheckEntries(IEnumerable<RegistryEntry> registryEntries, IEnumerable<IniEntry> iniEntries, List<string> problems)
     {
-        foreach (var r in p.RegistryEntries)
+        foreach (var r in registryEntries)
         {
             string who = $"Registry:{r.Name}";
             if (!EntryNamePattern.IsMatch(r.Name)) problems.Add($"{who}: name must use letters, digits, '-' or '_'.");
@@ -140,7 +147,7 @@ public sealed class ProfileValidator
             if (!Features.Contains(r.Feature)) problems.Add($"{who}: Feature '{r.Feature}' is not known.");
         }
 
-        foreach (var e in p.IniEntries)
+        foreach (var e in iniEntries)
         {
             string who = $"Ini:{e.Name}";
             if (!EntryNamePattern.IsMatch(e.Name)) problems.Add($"{who}: name must use letters, digits, '-' or '_'.");

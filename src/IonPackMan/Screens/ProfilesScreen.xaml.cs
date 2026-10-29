@@ -408,7 +408,7 @@ public partial class ProfilesScreen : UserControl, IScreen
         ValidPill.Kind = problems.Count == 0 ? StatusKind.Success : StatusKind.Error;
         ValidPill.Text = problems.Count == 0 ? "Valid" : $"{problems.Count} issue{(problems.Count == 1 ? "" : "s")}";
 
-        var rows = ConfigResolver.Resolve(_profile, _allowList).Select(r => new ConfigRow(r)).ToList();
+        var rows = _validator.Resolve(_profile).Select(r => new ConfigRow(r)).ToList();
         ConfigGrid.ItemsSource = rows;
         ConfigGrid.Visibility = rows.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         NoConfig.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;

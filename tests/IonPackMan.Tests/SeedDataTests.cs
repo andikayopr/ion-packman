@@ -93,9 +93,13 @@ public class SeedDataTests
     {
         var allow = LoadAllowList();
         var store = Profiles().Store;
+        var (catalog, catalogErrors) = ConfigCatalog.Load(Paths.ConfigCatalogIni(ReleaseDir));
+        Assert.Empty(catalogErrors);
 
-        var qris = ConfigResolver.Resolve(store.Load("QRISTAP").Profile!, allow);
-        var mdd = ConfigResolver.Resolve(store.Load("MDD").Profile!, allow);
+        // Entri hanya ada di katalog global mesin; profile bawaan tidak membawa entri sendiri.
+        Assert.Empty(store.Load("QRISTAP").Profile!.RegistryEntries);
+        var qris = ConfigResolver.Resolve(store.Load("QRISTAP").Profile!, allow, catalog);
+        var mdd = ConfigResolver.Resolve(store.Load("MDD").Profile!, allow, catalog);
 
         Assert.Equal(6, qris.Count);
         Assert.All(qris, e => Assert.Equal(EntryState.Enabled, e.State));

@@ -21,16 +21,18 @@ public sealed record ResolvedEntry(
 /// </summary>
 public static class ConfigResolver
 {
-    public static List<ResolvedEntry> Resolve(Profile profile, AllowList allowList)
+    /// <param name="catalog">Katalog global mesin; null = hanya entri khusus profile.</param>
+    public static List<ResolvedEntry> Resolve(Profile profile, AllowList allowList, ConfigCatalog? catalog = null)
     {
         var entries = new List<ResolvedEntry>();
+        var (registryEntries, iniEntries) = (catalog ?? ConfigCatalog.Empty).EntriesFor(profile);
 
-        foreach (var r in profile.RegistryEntries)
+        foreach (var r in registryEntries)
             entries.Add(new ResolvedEntry("Registry", r.Name, r.Key, r.ValueName, r.Type, r.Value, r.Feature,
                 StateOf(profile, r.Feature),
                 allowList.IsRegistryKeyAllowed(r.Key) ? null : $"Registry key '{r.Key}' is not in the allow-list."));
 
-        foreach (var e in profile.IniEntries)
+        foreach (var e in iniEntries)
             entries.Add(new ResolvedEntry("INI", e.Name, e.File, $"[{e.Section}] {e.Key}", "", e.Value, e.Feature,
                 StateOf(profile, e.Feature),
                 allowList.IsIniFileAllowed(e.File) ? null : $"INI file '{e.File}' is not in the allow-list."));

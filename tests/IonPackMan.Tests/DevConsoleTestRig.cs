@@ -31,9 +31,10 @@ internal sealed class DevConsoleTestRig : IDisposable
         env ??= new TestDeployEnvironment();
         var backups = new BackupStore(env.Cache, env.Registry, env.Services, env.Allow);
         var history = new HistoryStore(env.Cache);
-        var deployer = new Deployer(env.Machine, env.Guards, backups, env.Services, env.Registry, history, TimeSpan.FromSeconds(1));
+        var deployer = new Deployer(env.Machine, env.Guards, backups, env.Services, env.Processes, env.Registry, history, TimeSpan.FromSeconds(1));
         var detector = new ProfileDetector(env.Components, env.Profiles, _ => detected, _ => detected);
-        var screen = new DevConsoleScreen(env.Machine, env.Profiles, env.Components, env.Builds, env.Planner, deployer, backups, detector);
+        var switcher = new ProfileSwitcher(env.Machine, env.Allow, env.Profiles, env.Validator, env.Components, detector, env.Services, env.Planner, deployer);
+        var screen = new DevConsoleScreen(env.Machine, env.Profiles, env.Components, env.Builds, env.Planner, deployer, switcher, backups, detector);
         var host = new Window { Content = screen };   // style tema hanya berlaku bila elemen berada di Window
         screen.Measure(new Size(808, 3000));
 

@@ -179,11 +179,55 @@ public class DevConsoleScreenTests
     // ---------- Preview ----------
 
     [Fact]
+    public void SnapshotCheckbox_IsOffByDefault_AndOnlyEnabledWithDeployFiles()
+    {
+        using var rig = WpfHost.Run(() => DevConsoleTestRig.Create());
+        WpfHost.Run(() =>
+        {
+            var snapshot = rig.Part<CheckBox>("SnapshotBox");
+            Assert.False(snapshot.IsChecked);
+            Assert.True(snapshot.IsEnabled);
+
+            rig.Deploy.IsChecked = false;
+            Assert.False(snapshot.IsEnabled);
+        });
+    }
+
+    [Fact]
+    public void Preview_WithSnapshot_ShowsTheSnapshotRow()
+    {
+        using var rig = WpfHost.Run(() => DevConsoleTestRig.Create());
+        WpfHost.Run(() =>
+        {
+            rig.SelectWind();
+            rig.Part<CheckBox>("SnapshotBox").IsChecked = true;
+            Assert.True(rig.Screen.PreviewPlan());
+
+            Assert.Contains("Whole folder", rig.PlanRows()["Snapshot"]);
+        });
+    }
+
+    [Fact]
+    public void Preview_ServiceExecutableUnreadable_ShowsWarningButStillAllowsExecute()
+    {
+        using var rig = WpfHost.Run(() => DevConsoleTestRig.Create());
+        WpfHost.Run(() =>
+        {
+            rig.SelectWind();   // FakeServiceControl tanpa path exe = tidak terbaca
+            Assert.True(rig.Screen.PreviewPlan());
+
+            Assert.Contains("executable path could not be read", rig.PlanRows()["Service"]);
+            Assert.True(rig.ExecuteButton.IsEnabled);
+        });
+    }
+
+    [Fact]
     public void Preview_Success_ShowsOneSummaryLinePerKind_AndEnablesExecute()
     {
         using var rig = WpfHost.Run(() => DevConsoleTestRig.Create());
         WpfHost.Run(() =>
         {
+            rig.Env.Services.WithExecutable("WIND", Path.Combine(rig.Env.Target, "WIND.exe"));
             rig.SelectWind();
             rig.Config.IsChecked = true;
             Assert.True(rig.Screen.PreviewPlan());

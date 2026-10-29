@@ -32,11 +32,13 @@ public partial class ProgressDialog : Window
         HeaderText.Text = (machineName is null ? "Executing " : $"Executing on {machineName}: ") + $"{plan.ComponentId} {plan.ReleaseVersion}";
 
         Add(DeployStep.Checking, "Checking safety guards");
-        Add(DeployStep.BackingUp, "Creating backup");
+        Add(DeployStep.BackingUp, plan.SnapshotFolder ? "Creating backup and folder snapshot" : "Creating backup");
         if (plan.StopServiceBefore) Add(DeployStep.StoppingService, $"Stopping service {plan.ServiceName}");
+        if (plan.RestartsPrograms) Add(DeployStep.StoppingService, "Stopping the running program");
         if (plan.DeployFiles) Add(DeployStep.CopyingFiles, "Copying files");
         if (plan.ApplyConfig) Add(DeployStep.ApplyingConfig, "Applying configuration");
         if (plan.StartServiceAfter) Add(DeployStep.StartingService, $"Starting service {plan.ServiceName}");
+        if (plan.RestartsPrograms) Add(DeployStep.StartingService, "Starting the program again");
         Add(DeployStep.Finalizing, "Finalizing");
 
         IsRunning = true;

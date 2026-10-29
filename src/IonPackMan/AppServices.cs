@@ -18,6 +18,8 @@ public sealed class AppServices
     public List<string> MachineErrors { get; private init; } = [];
     public AllowList? AllowList { get; private init; }
     public List<string> AllowListErrors { get; private init; } = [];
+    /// <summary>Masalah di Config\config-entries.ini; tidak kosong = layar yang memakai config (Profiles, Developer Console) tidak dibuka.</summary>
+    public List<string> ConfigCatalogErrors { get; private init; } = [];
 
     public required ComponentStore Components { get; init; }
     public required MachineInspector Inspector { get; init; }
@@ -32,6 +34,7 @@ public sealed class AppServices
     public Guards? Guards { get; private init; }
     public PlanBuilder? Planner { get; private init; }
     public Deployer? Deployer { get; private init; }
+    public ProfileSwitcher? Switcher { get; private init; }
     public ProfileDetector? Detector { get; private init; }
     public RecoveryService? Recovery { get; private init; }
 
@@ -43,7 +46,9 @@ public sealed class AppServices
         var components = new ComponentStore(releaseDir);
         var inspector = new MachineInspector();
 
-        ProfileValidator? validator = allowList is null ? null : new ProfileValidator(components, allowList);
+        var (configCatalog, configCatalogErrors) = ConfigCatalog.Load(Paths.ConfigCatalogIni(releaseDir));
+
+        ProfileValidator? validator = allowList is null ? null : new ProfileValidator(components, allowList, configCatalog);
         ProfileStore? profiles = validator is null ? null : new ProfileStore(releaseDir, validator);
         BuildImporter? builds = machine is null ? null : new BuildImporter(machine.LocalCacheDirectory);
         HistoryStore? history = machine is null ? null : new HistoryStore(machine.LocalCacheDirectory);
@@ -52,14 +57,17 @@ public sealed class AppServices
         // Registry dan service sungguhan hanya dibuat di sini; semua tes memakai versi palsu.
         IRegistryAccess registry = new RegistryAccess();
         IServiceControl serviceControl = new ServiceControl();
+        IProcessControl processControl = new ProcessControl(inspector);
 
         BackupStore? backups = machine is null || allowList is null ? null : new BackupStore(machine.LocalCacheDirectory, registry, serviceControl, allowList);
         Guards? guards = machine is null || allowList is null || builds is null || backups is null ? null
             : new Guards(machine, allowList, builds, () => PendingBackupLines(backups));
         PlanBuilder? planner = machine is null || allowList is null || profiles is null || validator is null || builds is null || guards is null ? null
-            : new PlanBuilder(machine, allowList, components, profiles, validator, builds, registry, serviceControl, guards);
+            : new PlanBuilder(machine, allowList, components, profiles, validator, builds, registry, serviceControl, processControl, guards);
         Deployer? deployer = machine is null || guards is null || backups is null || history is null ? null
-            : new Deployer(machine, guards, backups, serviceControl, registry, history);
+            : new Deployer(machine, guards, backups, serviceControl, processControl, registry, history);
+        ProfileSwitcher? switcher = machine is null || allowList is null || profiles is null || validator is null || detector is null || planner is null || deployer is null ? null
+            : new ProfileSwitcher(machine, allowList, profiles, validator, components, detector, serviceControl, planner, deployer);
 
         return new AppServices
         {
@@ -67,6 +75,7 @@ public sealed class AppServices
             MachineErrors = machineErrors,
             AllowList = allowList,
             AllowListErrors = allowListErrors,
+            ConfigCatalogErrors = configCatalogErrors,
             Components = components,
             Inspector = inspector,
             Validator = validator,
@@ -79,6 +88,7 @@ public sealed class AppServices
             Guards = guards,
             Planner = planner,
             Deployer = deployer,
+            Switcher = switcher,
             Dashboard = new DashboardReader(machine, machineErrors, inspector, detector, profiles, validator, components, history),
         };
     }

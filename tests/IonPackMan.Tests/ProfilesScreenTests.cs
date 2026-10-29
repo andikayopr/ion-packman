@@ -18,8 +18,8 @@ public class ProfilesScreenTests : IDisposable
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "ionpackman-ps-" + Guid.NewGuid().ToString("N"));
     private readonly ComponentStore _components;
-    private readonly ProfileValidator _validator;
-    private readonly ProfileStore _store;
+    private ProfileValidator _validator;
+    private ProfileStore _store;
     private readonly AllowList _allow;
 
     public ProfilesScreenTests()
@@ -31,7 +31,17 @@ public class ProfilesScreenTests : IDisposable
         Assert.Empty(errors);
         _allow = list!;
         _components = new ComponentStore(_dir);
-        _validator = new ProfileValidator(_components, _allow);
+        _validator = null!;
+        _store = null!;
+        Rebuild();
+    }
+
+    // Katalog config dibaca dari folder sementara; tes yang mengubah config-entries.ini memanggil ulang lewat NewScreen().
+    private void Rebuild()
+    {
+        var (catalog, errors) = ConfigCatalog.Load(Paths.ConfigCatalogIni(_dir));
+        Assert.Empty(errors);
+        _validator = new ProfileValidator(_components, _allow, catalog);
         _store = new ProfileStore(_dir, _validator);
     }
 
@@ -53,6 +63,7 @@ public class ProfilesScreenTests : IDisposable
     {
         _anchor ??= new Window { Width = 10, Height = 10, WindowStyle = WindowStyle.None, ShowInTaskbar = false, ShowActivated = false, Left = -20000, Top = -20000 };
         if (!_anchor.IsVisible) _anchor.Show();
+        Rebuild();
         return new ProfilesScreen(_store, _components, _validator, _allow);
     }
 
@@ -323,8 +334,8 @@ public class ProfilesScreenTests : IDisposable
     [Fact]
     public void EntryOutsideAllowList_ShowsCross_AndMakesProfileInvalid()
     {
-        string text = File.ReadAllText(ProfileFile("QRISTAP"));
-        File.WriteAllText(ProfileFile("QRISTAP"), text.Replace(@"File=D:\APCONTAINER\Config\GPFCNFG.ini", @"File=C:\Windows\win.ini"));
+        string catalogFile = Paths.ConfigCatalogIni(_dir);
+        File.WriteAllText(catalogFile, File.ReadAllText(catalogFile).Replace(@"File=D:\APCONTAINER\Config\GPFCNFG.ini", @"File=C:\Windows\win.ini"));
 
         WpfHost.Run(() =>
         {

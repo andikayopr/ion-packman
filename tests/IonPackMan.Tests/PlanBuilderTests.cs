@@ -183,14 +183,151 @@ public class PlanBuilderTests
     }
 
     [Fact]
-    public void RestartWithoutServiceName_IsBlocked()
+    public void RestartWithoutServiceName_AndNoProgramRunning_IsBlocked()
     {
         using var env = new TestDeployEnvironment();
 
         var (plan, errors) = env.Planner.Build(new("TESTP", "ion-middleware", "1.8.2", false, false, true));
 
         Assert.Null(plan);
-        Assert.Contains("no Windows service name", Joined(errors));
+        Assert.Contains("no program is running", Joined(errors));
+    }
+
+    [Fact]
+    public void ComponentWithoutService_PlansToRestartTheRunningProgram()
+    {
+        using var env = new TestDeployEnvironment();
+        string exe = Path.Combine(env.Apps, "Mw", "IonMiddleware.exe");
+        env.Processes.Run(exe);
+
+        var plan = env.Planner.Build(new("TESTP", "ion-middleware", "1.8.2", false, false, true)).Plan!;
+
+        Assert.True(plan.RestartsPrograms);
+        Assert.Equal([exe], plan.ProgramsAtPlan);
+        Assert.False(plan.StopServiceBefore);
+        Assert.False(plan.StartServiceAfter);
+    }
+
+    [Fact]
+    public void ApplyConfigOnly_DoesNotRestartTheProgram()
+    {
+        using var env = new TestDeployEnvironment();
+        env.Processes.Run(Path.Combine(env.Apps, "Mw", "IonMiddleware.exe"));
+
+        var plan = env.Planner.Build(new("TESTP", "ion-middleware", "1.8.2", false, true, false)).Plan!;
+
+        Assert.False(plan.RestartsPrograms);
+    }
+
+    [Fact]
+    public void ConfigFromTheGlobalCatalog_IsPlannedForAProfileWithoutOwnEntries()
+    {
+        using var env = new TestDeployEnvironment();
+        string catalogFile = Path.Combine(env.Root, "config-entries.ini");
+        File.WriteAllText(catalogFile, $"""
+            [Meta]
+            SchemaVersion=1.0
+            [Registry:WebUISupport]
+            Key={TestDeployEnvironment.RegKey}
+            ValueName=Support
+            Type=DWORD
+            Value=1
+            Feature=WindWebUI
+            [Ini:WebUISupport]
+            File={env.AppIni}
+            Section=WebUI
+            Key=Support
+            Value=1
+            Feature=WindWebUI
+            """);
+        var (catalog, catalogErrors) = Profiles.ConfigCatalog.Load(catalogFile);
+        Assert.Empty(catalogErrors);
+        Assert.Empty(env.Profiles.Save(new Profiles.Profile
+        {
+            Id = "BARE", Version = "1.0.0", WindWebUIEnabled = true,
+            Components = [new("ion-middleware", "1.8.2", []), new("wind", "2.1.0", ["ion-middleware"])],
+        }));
+        var validator = new Profiles.ProfileValidator(env.Components, env.Allow, catalog);
+        var planner = new PlanBuilder(env.Machine, env.Allow, env.Components, env.Profiles, validator, env.Builds, env.Registry,
+            env.Services, env.Processes, env.Guards);
+
+        var (plan, errors) = planner.Build(new("BARE", "wind", "2.1.0", false, true, false));
+
+        Assert.Empty(errors);
+        Assert.Equal("Support", Assert.Single(plan!.RegistryChanges).ValueName);
+        Assert.Equal("Support", Assert.Single(plan.IniChanges).Key);
+    }
+
+    [Fact]
+    public void SnapshotOption_RecordsFolderSizeInThePlan()
+    {
+        using var env = new TestDeployEnvironment();
+
+        var plan = env.Planner.Build(TestDeployEnvironment.All() with { SnapshotFolder = true }).Plan!;
+
+        Assert.True(plan.SnapshotFolder);
+        Assert.Equal("old-exe".Length + "keep".Length, plan.SnapshotBytes);   // WIND.exe lama + keep.txt
+    }
+
+    [Fact]
+    public void SnapshotOption_IsIgnoredWithoutDeployFiles()
+    {
+        using var env = new TestDeployEnvironment();
+
+        var plan = env.Planner.Build(new("TESTP", "wind", "2.1.0", false, true, false, SnapshotFolder: true)).Plan!;
+
+        Assert.False(plan.SnapshotFolder);
+    }
+
+    [Fact]
+    public void SnapshotOption_NeedsFreeDiskSpaceForTheWholeFolder()
+    {
+        using var env = new TestDeployEnvironment();
+        File.WriteAllBytes(Path.Combine(env.Target, "big.bin"), new byte[3 * 1024 * 1024]);
+        env.FreeSpace = 3 * 1024 * 1024;   // cukup untuk build kecil, tidak untuk snapshot 3 MB + margin
+
+        var withoutSnapshot = env.Planner.Build(TestDeployEnvironment.All());
+        var (plan, errors) = env.Planner.Build(TestDeployEnvironment.All() with { SnapshotFolder = true });
+
+        Assert.NotNull(withoutSnapshot.Plan);
+        Assert.Null(plan);
+        Assert.Contains("Not enough free disk space for the backup", Joined(errors));
+    }
+
+    [Fact]
+    public void ServiceRunningOutsideTargetDirectory_BlocksDeployFiles()
+    {
+        using var env = new TestDeployEnvironment();
+        env.Services.WithExecutable("WIND", @"C:\Elsewhere\WIND.exe");
+
+        var (plan, errors) = env.Planner.Build(TestDeployEnvironment.All());
+
+        Assert.Null(plan);
+        Assert.Contains("outside the target directory", Joined(errors));
+    }
+
+    [Fact]
+    public void ServiceRunningInsideTargetDirectory_IsAccepted()
+    {
+        using var env = new TestDeployEnvironment();
+        string exe = Path.Combine(env.Target, "WIND.exe");
+        env.Services.WithExecutable("WIND", exe);
+
+        var plan = env.Planner.Build(TestDeployEnvironment.All()).Plan!;
+
+        Assert.Equal(exe, plan.ServiceExecutable);
+    }
+
+    [Fact]
+    public void ServiceRunningOutsideTargetDirectory_DoesNotBlockConfigOrRestartOnly()
+    {
+        using var env = new TestDeployEnvironment();
+        env.Services.WithExecutable("WIND", @"C:\Elsewhere\WIND.exe");
+
+        var (plan, errors) = env.Planner.Build(new("TESTP", "wind", "2.1.0", DeployFiles: false, ApplyConfig: true, RestartService: true));
+
+        Assert.Empty(errors);
+        Assert.NotNull(plan);
     }
 
     [Fact]
@@ -198,7 +335,7 @@ public class PlanBuilderTests
     {
         using var env = new TestDeployEnvironment();
         var empty = new FakeServiceControl();   // WIND tidak ada di mesin ini
-        var planner = new PlanBuilder(env.Machine, env.Allow, env.Components, env.Profiles, env.Validator, env.Builds, env.Registry, empty, env.Guards);
+        var planner = new PlanBuilder(env.Machine, env.Allow, env.Components, env.Profiles, env.Validator, env.Builds, env.Registry, empty, env.Processes, env.Guards);
 
         var (plan, errors) = planner.Build(new("TESTP", "wind", "2.1.0", false, false, true));
 

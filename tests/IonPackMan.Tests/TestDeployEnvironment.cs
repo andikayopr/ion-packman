@@ -34,6 +34,7 @@ internal sealed class TestDeployEnvironment : IDisposable
     public BuildImporter Builds { get; private set; } = null!;
     public FakeRegistry Registry { get; } = new();
     public FakeServiceControl Services { get; } = new();
+    public FakeProcessControl Processes { get; } = new();
 
     /// <summary>Isi daftar ini untuk mensimulasikan backup yang belum selesai.</summary>
     public List<string> UnfinishedBackups { get; } = [];
@@ -85,7 +86,7 @@ internal sealed class TestDeployEnvironment : IDisposable
 
     public MachineConfig MachineWith(string environment, string cacheDir) => new()
     {
-        MachineName = "TEST-PC", Environment = environment,
+        MachineName = "TEST-PC", Environment = environment, SourcePath = Path.Combine(Root, "machine.ini"),
         InstallLocations = new Dictionary<string, string> { ["TEST"] = Apps },
         LocalCacheDirectory = cacheDir,
     };
@@ -94,7 +95,7 @@ internal sealed class TestDeployEnvironment : IDisposable
     public PlanBuilder PlannerFor(MachineConfig machine)
     {
         Guards = new Guards(machine, Allow, Builds, () => [.. UnfinishedBackups], _ => FreeSpace);
-        return new PlanBuilder(machine, Allow, Components, Profiles, Validator, Builds, Registry, Services, Guards);
+        return new PlanBuilder(machine, Allow, Components, Profiles, Validator, Builds, Registry, Services, Processes, Guards);
     }
 
     private void WriteAllowList()

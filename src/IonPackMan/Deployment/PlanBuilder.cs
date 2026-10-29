@@ -11,11 +11,11 @@ namespace IonPackMan.Deployment;
 /// <summary>Pilihan pengguna di Developer Console (PRD R9).</summary>
 public sealed record PlanRequest(
     string ProfileId, string ComponentId, string ReleaseVersion,
-    bool DeployFiles, bool ApplyConfig, bool RestartService);
+    bool DeployFiles, bool ApplyConfig, bool RestartService, bool SnapshotFolder = false);
 
 /// <summary>
 /// Menyusun <see cref="DeploymentPlan"/> dari pilihan pengguna (PRD R10) atau menolaknya dengan daftar alasan.
-/// Hanya MEMBACA mesin (status service, nilai Registry/INI, isi target); tidak mengubah apa pun.
+/// Hanya MEMBACA mesin (status service, program yang berjalan, nilai Registry/INI, isi target); tidak mengubah apa pun.
 /// Pemeriksaan keselamatan (environment, path, allow-list, hash, disk, backup tertunda) dilakukan <see cref="Guards"/>.
 /// </summary>
 public sealed class PlanBuilder
@@ -28,11 +28,14 @@ public sealed class PlanBuilder
     private readonly BuildImporter _builds;
     private readonly IRegistryAccess _registry;
     private readonly IServiceControl _services;
+    private readonly IProcessControl _processes;
     private readonly Guards _guards;
 
     public PlanBuilder(MachineConfig machine, AllowList allowList, ComponentStore components, ProfileStore profiles,
-        ProfileValidator validator, BuildImporter builds, IRegistryAccess registry, IServiceControl services, Guards guards)
+        ProfileValidator validator, BuildImporter builds, IRegistryAccess registry, IServiceControl services,
+        IProcessControl processes, Guards guards)
     {
+        _processes = processes;
         _machine = machine;
         _allowList = allowList;
         _components = components;
@@ -59,15 +62,40 @@ public sealed class PlanBuilder
         if (profile is null || release is null)
             return (null, errors);
 
-        if (request.RestartService && release.ServiceName.Length == 0)
-            errors.Add($"{release.Id} has no Windows service name, so it cannot be restarted.");
-
+        // Component dengan service: Stop/Start service. Tanpa service: program biasa yang berjalan dari folder target.
         var serviceState = ServiceState.NotFound;
+        string serviceExe = "";
+        IReadOnlyList<string> programs = [];
         if (release.ServiceName.Length > 0)
         {
             serviceState = _services.GetState(release.ServiceName);
             if (request.RestartService && serviceState == ServiceState.NotFound)
                 errors.Add($"Service '{release.ServiceName}' was not found on this machine.");
+
+            // File yang dikirim ke folder lain tidak akan sampai ke program yang dijalankan service.
+            if (serviceState != ServiceState.NotFound)
+                serviceExe = _services.GetExecutablePath(release.ServiceName);
+            if (request.DeployFiles && serviceExe.Length > 0 && !MachineInspector.IsUnder(serviceExe, release.TargetDirectory))
+                errors.Add($"Service '{release.ServiceName}' runs '{serviceExe}', which is outside the target directory '{release.TargetDirectory}'. " +
+                           "Deployed files would not reach the running program. Fix the target directory in Components.");
+        }
+        else if (request.DeployFiles || request.RestartService)
+        {
+            programs = _processes.FindExecutablesUnder(release.TargetDirectory);
+            if (request.RestartService && programs.Count == 0)
+                errors.Add($"{release.Id} has no Windows service and no program is running from '{release.TargetDirectory}', so there is nothing to restart.");
+        }
+
+        // Snapshot hanya bermakna bila file akan diganti. Folder target yang belum ada (instalasi pertama) tidak punya isi untuk disalin.
+        bool snapshot = request.SnapshotFolder && request.DeployFiles && Directory.Exists(release.TargetDirectory);
+        long snapshotBytes = 0;
+        if (snapshot)
+        {
+            try { snapshotBytes = FolderCopy.SizeOf(release.TargetDirectory); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                errors.Add($"Cannot measure '{release.TargetDirectory}' for the folder snapshot: {ex.Message}");
+            }
         }
 
         var files = request.DeployFiles ? PlanFiles(request, release, errors) : [];
@@ -88,6 +116,10 @@ public sealed class PlanBuilder
             ApplyConfig = request.ApplyConfig,
             RestartService = request.RestartService,
             ServiceStateAtPlan = serviceState,
+            SnapshotFolder = snapshot,
+            SnapshotBytes = snapshotBytes,
+            ServiceExecutable = serviceExe,
+            ProgramsAtPlan = programs,
             BuildFilesDirectory = Paths.BuildFilesDir(_machine.LocalCacheDirectory, release.Id, release.ReleaseVersion),
             Files = files,
             RegistryChanges = registry,
@@ -192,10 +224,11 @@ public sealed class PlanBuilder
         var registry = new List<PlannedRegistryChange>();
         var ini = new List<PlannedIniChange>();
 
-        // Data diambil dari entri Profile; ConfigResolver hanya dipakai untuk keputusan allow-list (satu sumber aturan).
-        var resolved = ConfigResolver.Resolve(profile, _allowList).ToDictionary(e => (e.Scope, e.Name));
-        var activeRegistry = profile.RegistryEntries.Where(r => profile.IsFeatureEnabled(r.Feature)).ToList();
-        var activeIni = profile.IniEntries.Where(e => profile.IsFeatureEnabled(e.Feature)).ToList();
+        // Data diambil dari katalog global mesin + entri khusus Profile; ConfigResolver hanya dipakai untuk keputusan allow-list (satu sumber aturan).
+        var resolved = _validator.Resolve(profile).ToDictionary(e => (e.Scope, e.Name));
+        var (allRegistry, allIni) = _validator.Catalog.EntriesFor(profile);
+        var activeRegistry = allRegistry.Where(r => profile.IsFeatureEnabled(r.Feature)).ToList();
+        var activeIni = allIni.Where(e => profile.IsFeatureEnabled(e.Feature)).ToList();
 
         if (activeRegistry.Count + activeIni.Count == 0)
             errors.Add($"Profile '{profile.Id}' has no enabled Registry/INI changes to apply.");

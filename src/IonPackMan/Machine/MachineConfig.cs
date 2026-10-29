@@ -5,7 +5,8 @@ namespace IonPackMan.Machine;
 
 /// <summary>
 /// Isi machine.ini: identitas mesin, environment, lokasi instalasi, dan local cache (PRD §7.2, D9).
-/// File ini ditulis manual oleh developer dan tidak pernah ditulis oleh PackMan.
+/// File ini ditulis manual oleh developer. Satu-satunya yang ditulis PackMan: key [Machine] Profile, saat pindah Profile
+/// (<see cref="Deployment.ProfileSwitcher"/>), yang menandai Profile aktif.
 /// </summary>
 public sealed class MachineConfig
 {
@@ -13,8 +14,10 @@ public sealed class MachineConfig
 
     public required string MachineName { get; init; }
     public required string Environment { get; init; }
-    /// <summary>Profile yang dipilih manual bila deteksi otomatis ambigu; kosong = deteksi otomatis.</summary>
-    public string Profile { get; init; } = "";
+    /// <summary>Profile aktif: dipilih manual atau lewat pindah Profile; kosong = deteksi otomatis.</summary>
+    public string Profile { get; set; } = "";
+    /// <summary>Path machine.ini ini dibaca; kosong bila config dibuat tanpa file (tes).</summary>
+    public string SourcePath { get; init; } = "";
     public required IReadOnlyDictionary<string, string> InstallLocations { get; init; }
     public required string LocalCacheDirectory { get; init; }
 
@@ -60,6 +63,7 @@ public sealed class MachineConfig
             MachineName = ini.Get("Machine", "MachineName")!,
             Environment = environment,
             Profile = ini.Get("Machine", "Profile") ?? "",
+            SourcePath = Path.GetFullPath(path),
             InstallLocations = new Dictionary<string, string>(ini.Section("InstallLocations"), StringComparer.OrdinalIgnoreCase),
             LocalCacheDirectory = ini.Get("PackMan", "LocalCacheDirectory")!,
             Services = new Dictionary<string, string>(ini.Section("SERVICE"), StringComparer.OrdinalIgnoreCase),
