@@ -16,9 +16,9 @@ namespace IonPackMan.Screens;
 /// Layar Profiles (T12): katalog profile + definisi profile (Components, Registry &amp; INI, INI preview).
 /// Hanya tampilan: aturan ada di ProfileValidator, ConfigResolver dan ProfileStore.
 /// </summary>
-public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen
+public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen, IListDetailScreen
 {
-    private const int PageSize = 4;
+    private const int PageSize = 5;
 
     private readonly ProfileStore _store;
     private readonly ComponentStore _components;
@@ -104,6 +104,48 @@ public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen
         }
         HideBanner();
         LoadIntoForm(profile);
+        ShowDetail();
+    }
+
+    // ---------- Daftar <-> definisi ----------
+
+    /// <summary>True bila definisi profile yang tampil (bukan daftar).</summary>
+    public bool IsDetailShown => DetailPanel.Visibility == Visibility.Visible;
+
+    private void ShowDetail()
+    {
+        ListPanel.Visibility = ListHead.Visibility = Visibility.Collapsed;
+        DetailPanel.Visibility = DetailHead.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>Kembali ke daftar dengan data terbaru (profile baru/tersimpan langsung terlihat).</summary>
+    public void ShowList()
+    {
+        DetailPanel.Visibility = DetailHead.Visibility = Visibility.Collapsed;
+        ListPanel.Visibility = ListHead.Visibility = Visibility.Visible;
+        Refresh();
+    }
+
+    private void OnBack(object sender, RoutedEventArgs e)
+    {
+        HideBanner();
+        ShowList();
+    }
+
+    // Klik dua kali pada baris sama dengan Open (tombol Open tetap ada supaya jelas bisa diklik).
+    private void OnRowDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source && FindAncestor<Button>(source) is null
+            && CatalogGrid.SelectedItem is CatalogRow { CanOpen: true } row)
+            Open(row.Id);
+    }
+
+    private static T? FindAncestor<T>(DependencyObject start) where T : DependencyObject
+    {
+        for (var node = start; node is not null; node = VisualTreeHelper.GetParent(node))
+            if (node is T found)
+                return found;
+        return null;
     }
 
     /// <summary>Import INI dari path (dipanggil setelah dialog dipilih).</summary>
@@ -117,6 +159,7 @@ public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen
         }
         Refresh();
         LoadIntoForm(profile);
+        ShowDetail();
         ShowNotice(Banner, [$"Imported profile '{profile.Id}'."], null, StatusKind.Success);
         Message?.Invoke($"Profile '{profile.Id}' imported.");
     }
@@ -172,6 +215,7 @@ public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen
     {
         HideBanner();
         LoadIntoForm(NewProfile());
+        ShowDetail();
     }
 
     private void OnOpenClick(object sender, RoutedEventArgs e)
@@ -436,6 +480,11 @@ public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen
         _loading = false;
 
         var problems = _validator.Validate(_profile);
+        DetailTitle.Text = _profile.Id.Length == 0 ? "New profile"
+            : _profile.DisplayName.Length > 0 && _profile.DisplayName != _profile.Id ? $"{_profile.DisplayName} ({_profile.Id})" : _profile.Id;
+        DetailSubtitle.Text = _store.ListIds().Contains(_profile.Id, StringComparer.OrdinalIgnoreCase)
+            ? $"Version {_profile.Version} · {_profile.Components.Count} component{(_profile.Components.Count == 1 ? "" : "s")}"
+            : "Not saved yet. Fill in the form and choose Save Profile.";
         SaveButton.IsEnabled = problems.Count == 0;
         ValidPill.Kind = problems.Count == 0 ? StatusKind.Success : StatusKind.Error;
         ValidPill.Text = problems.Count == 0 ? "Valid" : $"{problems.Count} issue{(problems.Count == 1 ? "" : "s")}";

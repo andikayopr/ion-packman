@@ -17,21 +17,35 @@
         </Style>
     </UserControl.Resources>
 
+    <!-- Dua tampilan dalam satu layar (layar 1024x768 tidak muat daftar + form sekaligus): Daftar -> Open -> Form, dengan tombol kembali. -->
     <StackPanel>
-        <!-- Kepala halaman -->
-        <DockPanel Margin="0,0,0,16">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="ValidateButton" Content="Validate" Margin="0,0,8,0" Click="OnValidate"/>
-                <Button x:Name="SaveButton" Content="Save Component" Style="{StaticResource PrimaryButton}" Click="OnSave"/>
-            </StackPanel>
+        <!-- Kepala: daftar -->
+        <DockPanel x:Name="ListHead" Margin="0,0,0,16">
+            <Button x:Name="NewButton" DockPanel.Dock="Right" Content="＋ New release" Style="{StaticResource PrimaryButton}"
+                    VerticalAlignment="Center" Click="OnNewRelease"/>
             <StackPanel>
                 <TextBlock Text="Components" Style="{StaticResource PageTitle}"/>
                 <TextBlock Text="Define where each component release is installed and which service it runs as." Style="{StaticResource PageSubtitle}"/>
             </StackPanel>
         </DockPanel>
 
+        <!-- Kepala: form release -->
+        <DockPanel x:Name="DetailHead" Margin="0,0,0,16" Visibility="Collapsed">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="ValidateButton" Content="Validate" Margin="0,0,8,0" Click="OnValidate"/>
+                <Button x:Name="SaveButton" Content="Save Component" Style="{StaticResource PrimaryButton}" Click="OnSave"/>
+            </StackPanel>
+            <Button x:Name="BackButton" DockPanel.Dock="Left" Content="‹ Components" Margin="0,0,14,0" VerticalAlignment="Center"
+                    ToolTip="Back to the list" Click="OnBack"/>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="DetailTitle" Style="{StaticResource PageTitle}" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="DetailSubtitle" Style="{StaticResource PageSubtitle}" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </DockPanel>
+
         <c:Notice x:Name="CatalogNotice" Kind="Error" Visibility="Collapsed"/>
 
+        <StackPanel x:Name="ListPanel">
         <!-- Katalog -->
         <HeaderedContentControl Style="{StaticResource Card}" Header="Component catalog">
             <StackPanel>
@@ -51,12 +65,12 @@
                     </ComboBox>
                 </Grid>
 
-                <DataGrid x:Name="CatalogGrid" Height="196" RowHeight="40">
+                <DataGrid x:Name="CatalogGrid" Height="238" RowHeight="40" MouseDoubleClick="OnRowDoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Component" Binding="{Binding Display}" Width="1.5*"/>
-                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="1.3*"/>
+                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="1.1*"/>
                         <DataGridTextColumn Header="Local build" Binding="{Binding LocalBuild}" Width="1.5*"/>
-                        <DataGridTemplateColumn Header="Open" Width="78">
+                        <DataGridTemplateColumn Header="" Width="78">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Button Content="Open" Height="28" Padding="10,0" Tag="{Binding Id}" Click="OnOpenRow"/>
@@ -75,9 +89,11 @@
                 </DockPanel>
             </StackPanel>
         </HeaderedContentControl>
+        </StackPanel>
 
         <!-- Release -->
-        <HeaderedContentControl Style="{StaticResource Card}" Header="Component release" Margin="0,12,0,0">
+        <StackPanel x:Name="DetailPanel" Visibility="Collapsed">
+        <HeaderedContentControl Style="{StaticResource Card}" Header="Component release">
             <StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                     <Button x:Name="FormTab" Content="Form" Style="{StaticResource TabButton}" Tag="active" Click="OnShowForm"/>
@@ -137,5 +153,6 @@
                 <c:Notice x:Name="ReleaseNotice" Visibility="Collapsed" Margin="0,4,0,0"/>
             </StackPanel>
         </HeaderedContentControl>
+        </StackPanel>
     </StackPanel>
 </UserControl>

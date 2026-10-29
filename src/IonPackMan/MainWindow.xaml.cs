@@ -74,6 +74,12 @@ public partial class MainWindow : Window
             };
             // Navigate sendiri mencentang tombol; guard ini mencegah layar dibuka dan di-refresh dua kali.
             button.Checked += (_, _) => { if (_current != key) Navigate(key); };
+            // Menu layar yang sedang tampil diklik lagi: layar daftar/form kembali ke daftarnya.
+            button.Click += (_, _) =>
+            {
+                if (_current == key && _screens.TryGetValue(key, out var screen) && screen is IListDetailScreen listDetail)
+                    listDetail.ShowList();
+            };
             System.Windows.Automation.AutomationProperties.SetName(button, title);
             _navButtons[key] = button;
             Nav.Children.Add(button);

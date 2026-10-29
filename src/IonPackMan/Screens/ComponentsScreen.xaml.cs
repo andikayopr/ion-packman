@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using IonPackMan.Components;
 using IonPackMan.Controls;
 using IonPackMan.Machine;
@@ -11,9 +12,9 @@ namespace IonPackMan.Screens;
 /// Layar Components (UI/UX Spec §4.2): katalog, form release, pratinjau INI.
 /// Hanya tampilan; aturan isi dan penyimpanan ada di ComponentRelease dan ComponentStore.
 /// </summary>
-public partial class ComponentsScreen : UserControl, IScreen
+public partial class ComponentsScreen : UserControl, IScreen, IListDetailScreen
 {
-    private const int PageSize = 4;
+    private const int PageSize = 5;
 
     /// <summary>Satu baris tabel katalog.</summary>
     private sealed record CatalogRow(string Id, string Display, string Version, string LocalBuild, bool HasVersions, bool HasBuild);
@@ -137,9 +138,62 @@ public partial class ComponentsScreen : UserControl, IScreen
             OpenComponent(row.Id, row.HasVersions ? row.Version : null);
     }
 
+    // Klik dua kali pada baris sama dengan Open (tombol Open tetap ada supaya jelas bisa diklik).
+    private void OnRowDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source && FindAncestor<Button>(source) is null
+            && CatalogGrid.SelectedItem is CatalogRow row)
+            OpenComponent(row.Id, row.HasVersions ? row.Version : null);
+    }
+
+    private static T? FindAncestor<T>(DependencyObject start) where T : DependencyObject
+    {
+        for (var node = start; node is not null; node = System.Windows.Media.VisualTreeHelper.GetParent(node))
+            if (node is T found)
+                return found;
+        return null;
+    }
+
+    // ---------- Daftar <-> form ----------
+
+    /// <summary>True bila form release yang tampil (bukan daftar).</summary>
+    public bool IsDetailShown => DetailPanel.Visibility == Visibility.Visible;
+
+    private void ShowDetail()
+    {
+        ListPanel.Visibility = ListHead.Visibility = Visibility.Collapsed;
+        DetailPanel.Visibility = DetailHead.Visibility = Visibility.Visible;
+        OnFormStateChanged();   // judul mengikuti isi form
+    }
+
+    /// <summary>Kembali ke daftar dengan data terbaru (release baru/terhapus langsung terlihat).</summary>
+    public void ShowList()
+    {
+        DetailPanel.Visibility = DetailHead.Visibility = Visibility.Collapsed;
+        ListPanel.Visibility = ListHead.Visibility = Visibility.Visible;
+        Refresh();
+    }
+
+    private void OnBack(object sender, RoutedEventArgs e) => ShowList();
+
+    /// <summary>Form kosong untuk release baru; memilih component memuat release terbarunya sebagai titik awal.</summary>
+    public void NewRelease()
+    {
+        _loadingForm = true;
+        ComponentBox.SelectedItem = null;
+        VersionBox.Text = BuildRefBox.Text = ServiceBox.Text = TargetBox.Text = "";
+        _loadingForm = false;
+        ReleaseNotice.Visibility = Visibility.Collapsed;
+        ShowDetail();
+        Show(ReleaseNotice, StatusKind.Info, ["Choose a component. Its latest release is loaded as a starting point; change the version to save a new release."]);
+    }
+
+    private void OnNewRelease(object sender, RoutedEventArgs e) => NewRelease();
+
     /// <summary>Pilih component dan muat <paramref name="version"/> (null = versi tersimpan terbaru); bila belum ada, form dikosongkan.</summary>
     public void OpenComponent(string id, string? version = null)
     {
+        ShowDetail();
         SelectComponent(id);
         version ??= _store.ListVersions(id).FirstOrDefault();
         if (version is null)
@@ -214,6 +268,10 @@ public partial class ComponentsScreen : UserControl, IScreen
         ImportBuildButton.IsEnabled = isSaved;
         UseInConsoleButton.IsEnabled = isSaved;
         UseInConsoleButton.ToolTip = isSaved ? "Open this release in the Developer Console" : "Save the release first";
+        DetailTitle.Text = isSaved ? $"{_entries.FirstOrDefault(e => e.Id == release!.Id)?.DisplayName ?? release!.Id} {release!.ReleaseVersion}" : "New release";
+        DetailSubtitle.Text = release is null ? "Choose a component to start."
+            : isSaved ? "Saved release. Change the version and save to add another release."
+            : "Not saved yet. Fill in the form and choose Save Component.";
         DeleteButton.IsEnabled = isSaved;
         DeleteButton.ToolTip = isSaved ? "Delete this release. Other versions and imported builds are kept." : "Only a saved release can be deleted";
         SavedVersionsText.Text = release is null ? "Choose a component to see its saved versions."

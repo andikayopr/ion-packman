@@ -145,13 +145,13 @@ public class ProfilesScreenTests : IDisposable
             var prev = F<Button>(s, "PrevButton");
 
             Assert.Equal("Page 1 of 2 · 7 profiles", page.Text);
-            Assert.Equal(4, grid.Items.Count);
+            Assert.Equal(5, grid.Items.Count);
             Assert.False(prev.IsEnabled);
             Assert.True(next.IsEnabled);
 
             Click(next);
             Assert.Equal("Page 2 of 2 · 7 profiles", page.Text);
-            Assert.Equal(3, grid.Items.Count);
+            Assert.Equal(2, grid.Items.Count);
             Assert.False(next.IsEnabled);
 
             F<TextBox>(s, "SearchBox").Text = "  mdd ";                    // di-trim, tidak peka huruf besar
@@ -166,6 +166,64 @@ public class ProfilesScreenTests : IDisposable
 
             F<TextBox>(s, "SearchBox").Text = "nothing-like-this";
             Assert.Equal(Visibility.Visible, F<EmptyState>(s, "CatalogEmpty").Visibility);
+        });
+    }
+
+    private static Visibility Vis(ProfilesScreen s, string name) => F<UIElement>(s, name).Visibility;
+
+    [Fact]
+    public void StartsOnTheList_OpenShowsOnlyTheDefinition_BackReturnsToTheList()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = NewScreen();
+            Assert.False(s.IsDetailShown);
+            Assert.Equal(Visibility.Visible, Vis(s, "ListPanel"));
+            Assert.Equal(Visibility.Collapsed, Vis(s, "DetailPanel"));
+            Assert.Equal(Visibility.Collapsed, Vis(s, "DetailHead"));
+
+            s.Open("QRISTAP");
+            Assert.True(s.IsDetailShown);
+            Assert.Equal(Visibility.Collapsed, Vis(s, "ListPanel"));   // definisi langsung terlihat tanpa scroll
+            Assert.Equal(Visibility.Visible, Vis(s, "DetailHead"));
+            Assert.Equal("QRIS TAP (QRISTAP)", F<TextBlock>(s, "DetailTitle").Text);
+            Assert.Equal("Version 1.0.0 · 3 components", F<TextBlock>(s, "DetailSubtitle").Text);
+
+            Click(F<Button>(s, "BackButton"));
+            Assert.False(s.IsDetailShown);
+            Assert.Equal(Visibility.Visible, Vis(s, "ListPanel"));
+        });
+    }
+
+    [Fact]
+    public void NewProfile_OpensAnEmptyDefinition_AndSavingItAddsItToTheList()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = NewScreen();
+            Click(F<Button>(s, "NewButton"));
+            Assert.True(s.IsDetailShown);
+            Assert.Equal("New profile", F<TextBlock>(s, "DetailTitle").Text);
+
+            F<TextBox>(s, "IdBox").Text = "BRANDNEW";
+            Assert.Equal("BRANDNEW", F<TextBlock>(s, "DetailTitle").Text);
+            Assert.Contains("Not saved yet", F<TextBlock>(s, "DetailSubtitle").Text);
+        });
+    }
+
+    [Fact]
+    public void DoubleClickOnARow_OpensIt()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = NewScreen();
+            var grid = F<DataGrid>(s, "CatalogGrid");
+            grid.SelectedIndex = 1;   // QRISTAP (urut: MDD, QRISTAP)
+            grid.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+                { RoutedEvent = Control.MouseDoubleClickEvent, Source = grid });
+
+            Assert.True(s.IsDetailShown);
+            Assert.Equal("QRISTAP", F<TextBox>(s, "IdBox").Text);
         });
     }
 

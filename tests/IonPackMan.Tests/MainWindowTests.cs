@@ -13,12 +13,32 @@ public class MainWindowTests : IDisposable
     public MainWindowTests() => Directory.CreateDirectory(_dir);
     public void Dispose() => Directory.Delete(_dir, recursive: true);
 
-    private sealed class FakeScreen : UserControl, IScreen
+    private sealed class FakeScreen : UserControl, IScreen, IListDetailScreen
     {
         public event Action<string>? Message;
         public int Refreshed;
+        public int ListShown;
         public void Refresh() => Refreshed++;
+        public void ShowList() => ListShown++;
         public void Say(string text) => Message?.Invoke(text);
+    }
+
+    [Fact]
+    public void ClickingTheCurrentMenuAgain_ReturnsAListDetailScreenToItsList_OtherClicksDoNot()
+    {
+        WpfHost.Run(() =>
+        {
+            var made = new Dictionary<string, FakeScreen>();
+            var w = Create(made);
+            var nav = Find<StackPanel>(w, "Nav");
+            var profiles = (RadioButton)nav.Children[2];
+
+            profiles.IsChecked = true;                      // pindah ke Profiles: bukan klik pada menu yang sudah tampil
+            Assert.Equal(0, made["profiles"].ListShown);
+
+            profiles.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Assert.Equal(1, made["profiles"].ListShown);    // klik lagi: kembali ke daftar
+        });
     }
 
     private static MachineConfig Machine(string environment) => new()

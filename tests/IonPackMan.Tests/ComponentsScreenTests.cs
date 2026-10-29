@@ -80,7 +80,7 @@ public class ComponentsScreenTests : IDisposable
     // ---------- Katalog ----------
 
     [Fact]
-    public void Catalog_ShowsOneRowPerRelease_FourPerPage_WithItsOwnLocalBuild()
+    public void Catalog_ShowsOneRowPerRelease_FivePerPage_WithItsOwnLocalBuild()
     {
         WpfHost.Run(() =>
         {
@@ -88,19 +88,19 @@ public class ComponentsScreenTests : IDisposable
             var grid = Find<DataGrid>(s, "CatalogGrid");
 
             // 5 component, wind punya 2 release: 6 baris. Sel Version tidak pernah berisi beberapa versi.
-            Assert.Equal(4, grid.Items.Count);
+            Assert.Equal(5, grid.Items.Count);
             Assert.Equal("Page 1 of 2 · 6 releases", Find<TextBlock>(s, "PageText").Text);
             Assert.Equal("ION Middleware (ion-middleware) | 1.8.2 | Not imported", Row(s, 0));
             Assert.Equal("WIND (wind) | 2.1.0 | wind-build · 12 files", Row(s, 1));
             Assert.Equal("WIND (wind) | 2.0.0 | Not imported", Row(s, 2));
             Assert.Equal("QRAPTOR (qraptor) | 1.3.1 | Not imported", Row(s, 3));
+            Assert.Equal("Non-NDC Parser (non-ndc-parser) | None | Not imported", Row(s, 4));
             Assert.False(Find<Button>(s, "PrevButton").IsEnabled);
 
             Click(Find<Button>(s, "NextButton"));
-            Assert.Equal(2, grid.Items.Count);
+            Assert.Equal(1, grid.Items.Count);
             Assert.Equal("Page 2 of 2 · 6 releases", Find<TextBlock>(s, "PageText").Text);
-            Assert.Equal("Non-NDC Parser (non-ndc-parser) | None | Not imported", Row(s, 0));
-            Assert.Contains("MDD Service", Row(s, 1));
+            Assert.Contains("MDD Service", Row(s, 0));
             Assert.False(Find<Button>(s, "NextButton").IsEnabled);
         });
     }
@@ -146,7 +146,7 @@ public class ComponentsScreenTests : IDisposable
             var s = NewScreen();
             var window = Host(s);
             var open = WpfHost.Descendants<Button>(Find<DataGrid>(s, "CatalogGrid")).Where(b => (string)b.Content == "Open").ToList();
-            Assert.Equal(4, open.Count);
+            Assert.Equal(5, open.Count);
 
             Click(open[1]);                               // baris WIND
 
@@ -156,6 +156,74 @@ public class ComponentsScreenTests : IDisposable
             Assert.Equal("wind", (string)((ComboBoxItem)Find<ComboBox>(s, "ComponentBox").SelectedItem).Tag);
             Assert.Equal("Imported: wind-build · 12 files", Find<TextBlock>(s, "BuildText").Text);
             window.Close();
+        });
+    }
+
+    private static Visibility Vis(ComponentsScreen s, string name) => ((UIElement)s.FindName(name)).Visibility;
+
+    [Fact]
+    public void StartsOnTheList_OpenShowsOnlyTheForm_BackReturnsToTheList()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = NewScreen();
+            Assert.False(s.IsDetailShown);                      // daftar dulu
+            Assert.Equal(Visibility.Visible, Vis(s, "ListPanel"));
+            Assert.Equal(Visibility.Collapsed, Vis(s, "DetailPanel"));
+            Assert.Equal(Visibility.Collapsed, Vis(s, "DetailHead"));   // Validate/Save belum relevan di daftar
+
+            Choose(s, "wind");                                  // sama dengan menekan Open
+            Assert.True(s.IsDetailShown);
+            Assert.Equal(Visibility.Collapsed, Vis(s, "ListPanel"));   // daftar tidak memakan tempat: form langsung terlihat
+            Assert.Equal(Visibility.Visible, Vis(s, "DetailHead"));
+            Assert.Equal("WIND 2.1.0", Find<TextBlock>(s, "DetailTitle").Text);
+
+            Click(Find<Button>(s, "BackButton"));
+            Assert.False(s.IsDetailShown);
+            Assert.Equal(Visibility.Visible, Vis(s, "ListPanel"));
+            Assert.Equal(Visibility.Visible, Vis(s, "NewButton"));
+        });
+    }
+
+    [Fact]
+    public void NewRelease_StartsEmpty_ChoosingAComponentPrefillsIt_AndSavingAddsARowToTheList()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = NewScreen();
+            Click(Find<Button>(s, "NewButton"));
+            Assert.True(s.IsDetailShown);
+            Assert.Null(Find<ComboBox>(s, "ComponentBox").SelectedItem);
+            Assert.Equal("", Find<TextBox>(s, "VersionBox").Text);
+            Assert.Equal("New release", Find<TextBlock>(s, "DetailTitle").Text);
+            Assert.False(Find<Button>(s, "DeleteButton").IsEnabled);
+
+            var box = Find<ComboBox>(s, "ComponentBox");
+            box.SelectedItem = box.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == "wind");
+            Assert.Equal("2.1.0", Find<TextBox>(s, "VersionBox").Text);   // titik awal: release terbaru
+            Type(Find<TextBox>(s, "VersionBox"), "2.5.0");
+            Assert.Equal("New release", Find<TextBlock>(s, "DetailTitle").Text);
+            Click(Find<Button>(s, "SaveButton"));
+            Assert.Equal("WIND 2.5.0", Find<TextBlock>(s, "DetailTitle").Text);
+
+            Click(Find<Button>(s, "BackButton"));
+            Assert.Equal("WIND (wind) | 2.5.0 | Not imported", Row(s, 1));   // baris baru langsung ada di daftar
+        });
+    }
+
+    [Fact]
+    public void DoubleClickOnARow_OpensIt_LikeTheOpenButton()
+    {
+        WpfHost.Run(() =>
+        {
+            var s = NewScreen();
+            var grid = Find<DataGrid>(s, "CatalogGrid");
+            grid.SelectedIndex = 2;   // wind 2.0.0
+            grid.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+                { RoutedEvent = Control.MouseDoubleClickEvent, Source = grid });
+
+            Assert.True(s.IsDetailShown);
+            Assert.Equal("2.0.0", Find<TextBox>(s, "VersionBox").Text);
         });
     }
 

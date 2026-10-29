@@ -47,24 +47,37 @@
         </Style>
     </UserControl.Resources>
 
+    <!-- Dua tampilan dalam satu layar (1024x768 tidak muat daftar + definisi sekaligus): Daftar -> Open -> Definisi, dengan tombol kembali. -->
     <StackPanel>
-        <!-- Page head -->
-        <DockPanel Margin="0,0,0,12">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-                <Button x:Name="ValidateButton" Content="Validate" Margin="0,0,6,0" Click="OnValidate"/>
-                <Button x:Name="SaveButton" Content="Save Profile" Style="{StaticResource PrimaryButton}" Margin="0,0,6,0" Click="OnSave"/>
-                <Button x:Name="NewButton" Content="New profile" Click="OnNew"/>
-            </StackPanel>
+        <!-- Kepala: daftar -->
+        <DockPanel x:Name="ListHead" Margin="0,0,0,12">
+            <Button x:Name="NewButton" DockPanel.Dock="Right" Content="＋ New profile" Style="{StaticResource PrimaryButton}"
+                    VerticalAlignment="Center" Click="OnNew"/>
             <StackPanel>
                 <TextBlock Text="Profiles" Style="{StaticResource PageTitle}"/>
                 <TextBlock Text="Compose component versions and features for a machine." Style="{StaticResource PageSubtitle}"/>
             </StackPanel>
         </DockPanel>
 
+        <!-- Kepala: definisi profile -->
+        <DockPanel x:Name="DetailHead" Margin="0,0,0,12" Visibility="Collapsed">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="ValidateButton" Content="Validate" Margin="0,0,6,0" Click="OnValidate"/>
+                <Button x:Name="SaveButton" Content="Save Profile" Style="{StaticResource PrimaryButton}" Click="OnSave"/>
+            </StackPanel>
+            <Button x:Name="BackButton" DockPanel.Dock="Left" Content="‹ Profiles" Margin="0,0,14,0" VerticalAlignment="Center"
+                    ToolTip="Back to the list" Click="OnBack"/>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="DetailTitle" Style="{StaticResource PageTitle}" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="DetailSubtitle" Style="{StaticResource PageSubtitle}" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </DockPanel>
+
         <c:Notice x:Name="Banner" Visibility="Collapsed" Margin="0,0,0,12"/>
 
+        <StackPanel x:Name="ListPanel">
         <!-- Katalog profile -->
-        <HeaderedContentControl Style="{StaticResource Card}" Header="Profile catalog" Margin="0,0,0,12">
+        <HeaderedContentControl Style="{StaticResource Card}" Header="Profile catalog">
             <StackPanel>
                 <Grid Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
@@ -88,7 +101,7 @@
                 <c:Notice x:Name="CatalogNotice" Kind="Error" Visibility="Collapsed" Margin="0,0,0,10"/>
                 <Border BorderBrush="{StaticResource Brush.RowLine}" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
                     <Grid>
-                        <DataGrid x:Name="CatalogGrid">
+                        <DataGrid x:Name="CatalogGrid" MouseDoubleClick="OnRowDoubleClick">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Profile" Binding="{Binding Title}" Width="2*"/>
                                 <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="0.8*"/>
@@ -108,7 +121,7 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="Open" Width="80">
+                                <DataGridTemplateColumn Header="" Width="80">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Button Content="Open" Tag="{Binding Id}" IsEnabled="{Binding CanOpen}" Style="{StaticResource RowButton}" Click="OnOpenClick"/>
@@ -129,8 +142,10 @@
                 </DockPanel>
             </StackPanel>
         </HeaderedContentControl>
+        </StackPanel>
 
         <!-- Definisi profile -->
+        <StackPanel x:Name="DetailPanel" Visibility="Collapsed">
         <HeaderedContentControl Style="{StaticResource Card}">
             <HeaderedContentControl.Header>
                 <DockPanel>
@@ -267,5 +282,6 @@
                 </TabItem>
             </TabControl>
         </HeaderedContentControl>
+        </StackPanel>
     </StackPanel>
 </UserControl>
