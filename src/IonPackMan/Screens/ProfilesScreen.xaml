@@ -51,8 +51,6 @@
         <!-- Page head -->
         <DockPanel Margin="0,0,0,12">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-                <Button x:Name="ImportButton" Content="Import INI…" Margin="0,0,6,0" Click="OnImport"/>
-                <Button x:Name="ExportButton" Content="Export INI…" Margin="0,0,6,0" Click="OnExport"/>
                 <Button x:Name="ValidateButton" Content="Validate" Margin="0,0,6,0" Click="OnValidate"/>
                 <Button x:Name="SaveButton" Content="Save Profile" Style="{StaticResource PrimaryButton}" Margin="0,0,6,0" Click="OnSave"/>
                 <Button x:Name="NewButton" Content="New profile" Click="OnNew"/>
@@ -106,7 +104,7 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Button Content="Switch" Tag="{Binding Id}" IsEnabled="{Binding CanSwitch}" Style="{StaticResource RowButton}" Click="OnSwitchClick"
-                                                    ToolTip="Deploy every component of this profile and make it the active profile"/>
+                                                    ToolTip="{Binding SwitchTip}" ToolTipService.ShowOnDisabled="True"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>

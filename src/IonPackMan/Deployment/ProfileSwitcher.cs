@@ -52,6 +52,9 @@ public sealed class ProfileSwitcher
         _serviceTimeout = serviceTimeout ?? TimeSpan.FromSeconds(30);
     }
 
+    /// <summary>Profile aktif saat ini (machine.ini, atau deteksi bila kosong); null = tidak diketahui.</summary>
+    public string? ActiveProfileId() => _detector.Detect(_machine).ProfileId;
+
     /// <summary>Hanya MEMBACA mesin. Satu error pada component mana pun menggagalkan seluruh rencana (tidak ada yang setengah jalan).</summary>
     public (SwitchPlan? Plan, List<string> Errors) Build(string profileId)
     {

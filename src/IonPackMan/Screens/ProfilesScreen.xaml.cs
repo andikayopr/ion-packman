@@ -9,7 +9,6 @@ using IonPackMan.Controls;
 using IonPackMan.Deployment;
 using IonPackMan.Machine;
 using IonPackMan.Profiles;
-using Microsoft.Win32;
 
 namespace IonPackMan.Screens;
 
@@ -68,6 +67,7 @@ public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen
                                        ?? ((IEnumerable<ComponentChoice>)AddComponentBox.ItemsSource).FirstOrDefault();
 
         var problems = new List<string>(catalogErrors);
+        string? active = _switcher?.ActiveProfileId();
         _rows = [];
         foreach (string id in _store.ListIds())
         {
@@ -75,14 +75,16 @@ public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen
             if (profile is null)
             {
                 problems.AddRange(errors);
-                _rows.Add(new CatalogRow(id, id, "—", -1, "Unreadable", StatusKind.Error, false, false));
+                _rows.Add(new CatalogRow(id, id, "—", -1, "Unreadable", StatusKind.Error, false, false, ""));
                 continue;
             }
             bool valid = _validator.Validate(profile).Count == 0;
             string title = profile.DisplayName.Length > 0 && profile.DisplayName != id ? $"{profile.DisplayName} ({id})" : id;
+            bool isActive = active is not null && active.Equals(id, StringComparison.OrdinalIgnoreCase);
             _rows.Add(new CatalogRow(id, title, profile.Version, profile.Components.Count,
                 valid ? "Valid" : "Invalid", valid ? StatusKind.Success : StatusKind.Error, true,
-                CanSwitch: valid && _switcher is not null && profile.Components.Count > 0));
+                CanSwitch: valid && _switcher is not null && profile.Components.Count > 0 && !isActive,
+                SwitchTip: isActive ? "This is the current active profile." : "Deploy every component of this profile and make it the active profile"));
         }
 
         ShowNotice(CatalogNotice, problems.Count == 0 ? null : problems, "Some profile data cannot be read:");
@@ -143,23 +145,6 @@ public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen
     }
 
     // ---------- Tombol ----------
-
-    private void OnImport(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Title = "Import profile INI", Filter = "INI files (*.ini)|*.ini|All files (*.*)|*.*" };
-        if (dialog.ShowDialog() == true)
-            ImportFrom(dialog.FileName);
-    }
-
-    private void OnExport(object sender, RoutedEventArgs e)
-    {
-        var dialog = new SaveFileDialog
-        {
-            Title = "Export profile INI", Filter = "INI files (*.ini)|*.ini", FileName = (_profile.Id.Length > 0 ? _profile.Id : "Profile") + ".ini",
-        };
-        if (dialog.ShowDialog() == true)
-            ExportTo(dialog.FileName);
-    }
 
     private void OnValidate(object sender, RoutedEventArgs e)
     {
@@ -225,9 +210,9 @@ public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen
         var dialog = new SwitchProfileDialog(_switcher, profileId, _machineName);
         if (Window.GetWindow(this) is { } owner)
             dialog.Owner = owner;
-        dialog.Completed += result => Message?.Invoke(dialog.Switched ? $"Switched to profile '{profileId}'."
+        dialog.Completed += result => { Refresh(); Message?.Invoke(dialog.Switched ? $"Switched to profile '{profileId}'."
             : result.Succeeded ? $"Components of '{profileId}' were deployed, but the profile is not active. See the switch window."
-            : $"Switch to '{profileId}' did not complete. See the switch window.");
+            : $"Switch to '{profileId}' did not complete. See the switch window."); };
         dialog.Closed += (_, _) => _dialog = null;
         _dialog = dialog;
         dialog.Show();
@@ -505,7 +490,7 @@ public partial class ProfilesScreen : UserControl, IScreen, IBusyScreen
     }
 
     /// <param name="ComponentCount">-1 bila file tidak terbaca.</param>
-    private sealed record CatalogRow(string Id, string Title, string Version, int ComponentCount, string StatusText, StatusKind StatusKind, bool CanOpen, bool CanSwitch)
+    private sealed record CatalogRow(string Id, string Title, string Version, int ComponentCount, string StatusText, StatusKind StatusKind, bool CanOpen, bool CanSwitch, string SwitchTip)
     {
         public string ComponentsText => ComponentCount < 0 ? "—" : ComponentCount.ToString();
     }

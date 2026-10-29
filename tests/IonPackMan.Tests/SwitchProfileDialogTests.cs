@@ -73,6 +73,30 @@ public class SwitchProfileDialogTests
     }
 
     [Fact]
+    public void ProfilesCatalog_DisablesSwitch_ForTheCurrentActiveProfile_OnlyWhenValid()
+    {
+        using var env = new TestDeployEnvironment();
+        Assert.Empty(env.Profiles.Save(new IonPackMan.Profiles.Profile
+        {
+            Id = "NEWP", Version = "1.0.0", Components = [new("ion-middleware", "1.8.2", [])],
+        }));
+        env.Machine.Profile = "TESTP";
+        var switcher = ProfileSwitcherTests.SwitcherFor(env);
+
+        var rows = WpfHost.Run(() =>
+        {
+            var screen = new ProfilesScreen(env.Profiles, env.Components, env.Validator, env.Allow, switcher, "TEST-PC");
+            var grid = (DataGrid)screen.FindName("CatalogGrid");
+            return grid.Items.Cast<object>().ToDictionary(
+                r => (string)r.GetType().GetProperty("Id")!.GetValue(r)!,
+                r => (bool)r.GetType().GetProperty("CanSwitch")!.GetValue(r)!);
+        });
+
+        Assert.False(rows["TESTP"]);   // profile aktif
+        Assert.True(rows["NEWP"]);
+    }
+
+    [Fact]
     public void DevConsole_IsLocked_WhileAProfileSwitchRuns()
     {
         var gate = new IonPackMan.Deployment.ExecutionLock();
